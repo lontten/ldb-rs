@@ -1,0 +1,27 @@
+[workspace]
+members = ["ldb", "ldb-core", "ldb-macros"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+repository = "https://github.com/lontten/ldb-rs"
+authors = ["lontten <lontten@163.com>"]
+
+[workspace.dependencies]
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio",
+    "mysql",
+    "postgres",
+    "chrono",
+    "macros",
+] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+syn = { version = "2", features = ["full"] }
+quote = "1"
+proc-macro2 = "1"
+ldb-core = { path = "ldb-core" }
+ldb-macros = { path = "ldb-macros" }

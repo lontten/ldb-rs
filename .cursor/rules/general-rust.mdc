@@ -1,0 +1,53 @@
+---
+description: Rust 命名、惯用法与测试约定
+globs: **/*.rs, Cargo.toml
+alwaysApply: false
+---
+
+# Rust 约定
+
+## 模块布局（Rust 2018+）
+
+目录模块用 **`foo.rs` + `foo/`** 作为入口，**不新增** `foo/mod.rs`：
+
+- ✅ `ldb-core/src/engine.rs`、`where_builder.rs` 等扁平模块（本项目既有模式）
+- ✅ 若子模块增多：`dialect.rs` + `dialect/mysql.rs`（`dialect.rs` 中 `mod mysql;`）
+- ❌ `src/engine/mod.rs`（旧式；`mod.rs` 仍合法，但新项目/新模块不用）
+
+`foo.rs` 中声明子模块并 `pub use` 对外 API；实现放在 `foo/*.rs`。
+
+## 集合命名
+
+- 集合/列表字段用 `_list` 后缀
+- ✅ `primary_key_column_name_list`、`conflict_column_list`
+- ❌ `primary_keys`、`columns`
+
+## 注释
+
+- 公开类型/函数：类型上方 `///` 1～2 行（职责 + 使用场景）
+- **错误枚举**：每个变体一行 `///`（中文），说明何时返回；载明字段含义**优先写在变体注释**；自明字段不必逐字段 `///`
+- **配置结构体**（如 `MysqlConfig`）：每个 `pub` 字段 `///`，说明连接参数语义
+- 私有校验/工具函数：不显然时一行 `//` 说明职责
+- 不为 `derive`、标准 trait 实现单独注释
+
+示例（错误枚举）：
+
+```rust
+pub enum LdbError {
+    /// 功能尚未实现。
+    NotImplemented,
+    /// 连接不可用；`message` 为驱动返回的错误摘要。
+    NotConnected { message: String },
+}
+```
+
+## 错误与类型
+
+- 用 `Result<T, E>` 表达可失败操作；`Option<T>` 表达缺失
+- 除测试外避免 `unwrap()` / `expect()`
+- 优先借用，确需所有权再 clone
+
+## 交付前检查
+
+- 运行 `cargo fmt --all`、`cargo test --all`；有 clippy 时运行 `cargo clippy`
+- 纯逻辑写单元测试；跨模块行为写在对应 crate 的 `tests/` 或模块内 `#[cfg(test)]`

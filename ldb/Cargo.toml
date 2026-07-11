@@ -1,0 +1,21 @@
+[package]
+name = "ldb"
+description = "轻量 async ORM，支持 MySQL 与 PostgreSQL"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+readme = "../README.md"
+publish = true
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lib]
+name = "ldb"
+path = "src/lib.rs"
+
+[dependencies]
+ldb-core = { workspace = true }
+ldb-macros = { workspace = true }

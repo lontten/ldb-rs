@@ -1,0 +1,24 @@
+[package]
+name = "ldb-core"
+description = "ldb ORM 核心：Engine、Dialect、WhereBuilder"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = true
+
+[lib]
+name = "ldb_core"
+path = "src/lib.rs"
+
+[dependencies]
+sqlx = { workspace = true }
+tokio = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+
+[features]
+default = ["mysql", "postgres"]
+mysql = ["sqlx/mysql"]
+postgres = ["sqlx/postgres"]

@@ -1,0 +1,63 @@
+---
+description: ldb-rs 项目自定义约定
+globs: **/*.rs, README.md, doc/**
+alwaysApply: false
+---
+
+# ldb 项目约定
+
+## 定位
+
+- **ldb-rs**：Git 仓库名；**ldb**：crates.io 发布名与用户 `cargo add` 依赖名
+- 轻量 async ORM，支持 MySQL / PostgreSQL
+- 底层 **sqlx + tokio async**；运行时动态拼 SQL，**不用** `sqlx::query!()` 编译期宏
+
+## Workspace 分层
+
+| Crate | 职责 |
+|-------|------|
+| `ldb` | 用户门面；`pub use ldb_core::*` + `pub use ldb_macros::*` |
+| `ldb-core` | `Engine`、`Dialect`、`WhereBuilder`、`ExtraContext`、配置与错误 |
+| `ldb-macros` | `#[derive(LdbModel)]`（必须独立 proc-macro crate） |
+
+## 术语
+
+- 列映射用 struct 字段上的 **`db`** attribute，不用 schema 表示结构定义
+- 表配置概念：**`TableConf`**（表名、主键列、自增列）
+- 条件构建：**`WhereBuilder`**，工厂函数 **`w()`**
+- 查询扩展：**`ExtraContext`**，工厂函数 **`e()`**
+- 方言 trait：**`Dialect`**
+- 可空字段：**`Option<T>`**
+
+## 命名对照
+
+| 概念 | 推荐 | 避免 |
+|------|------|------|
+| MySQL 配置 | `MysqlConfig` | `MysqlConf` |
+| PG 配置 | `PgConfig` | `PgConf` |
+| 连接池配置 | `PoolConfig` | `PoolConf` |
+| 主键列名列表 | `primary_key_column_name_list` | `primary_keys`、`pks` |
+| WHERE 工厂 | `w()` | `where_builder()`（冗长） |
+| 错误类型 | `LdbError` | 分散的 `Box<dyn Error>` |
+
+## 集合命名
+
+- 集合/列表字段用 `_list` 后缀（见 `general-rust.mdc`）
+- ✅ `primary_key_column_name_list`、`conflict_column_list`
+- ❌ `primary_keys`、`columns`
+
+## 模型宏（后续阶段）
+
+- `#[derive(LdbModel)]` 解析表名、主键、`#[db(column = "...")]`
+- 过程宏仅放在 `ldb-macros`；模型元数据运行时逻辑放 `ldb-core`
+
+## 项目暴露面
+
+| 范围 | 要求 |
+|------|------|
+| `README.md`、`doc/` | 项目与用户文档 |
+| 源码注释、`Cargo.toml` | 仅 ldb ORM 语义 |
+| Git commit / PR | 只描述代码与项目变更，**不提**协作工具 |
+| `.cursor/` | 协作配置，随仓库提交（`plans/` 除外） |
+
+不得在 `README.md` / `doc/` 中引用 `.cursor` 或写入协作交接类内容。细则见 `cursor-agent.mdc`。
