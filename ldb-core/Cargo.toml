@@ -11,6 +11,7 @@ publish = true
 [lib]
 name = "ldb_core"
 path = "src/lib.rs"
+bench = false
 
 [dependencies]
 sqlx = { workspace = true }

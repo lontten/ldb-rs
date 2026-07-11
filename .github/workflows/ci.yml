@@ -103,7 +103,7 @@ jobs:
       - name: Setup tables
         run: |
           cargo test --package ldb-core --features integration -- --test-threads=1 mysql_crud_smoke pg_crud_smoke
-      - run: cargo bench --package ldb-core --features integration -- --noplot
+      - run: cargo bench --package ldb-core --features integration --bench crud_bench -- --noplot
       - uses: actions/upload-artifact@v4
         with:
           name: criterion-report
