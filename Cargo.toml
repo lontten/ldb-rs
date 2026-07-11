@@ -23,5 +23,5 @@ serde = { version = "1", features = ["derive"] }
 syn = { version = "2", features = ["full"] }
 quote = "1"
 proc-macro2 = "1"
-ldb-core = { path = "ldb-core" }
-ldb-macros = { path = "ldb-macros" }
+ldb-core = { version = "0.1.0", path = "ldb-core" }
+ldb-macros = { version = "0.1.0", path = "ldb-macros" }
