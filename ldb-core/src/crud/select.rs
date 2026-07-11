@@ -204,7 +204,7 @@ where
             if self.state.flags.dry_run {
                 return Ok(0);
             }
-            self.engine.execute_built(&built).await
+            self.engine.query_scalar_u64(&built).await
         })
     }
 }
@@ -223,8 +223,7 @@ where
             if self.state.flags.dry_run {
                 return Ok(false);
             }
-            let n = self.engine.execute_built(&built).await?;
-            Ok(n > 0)
+            self.engine.query_exists(&built).await
         })
     }
 }

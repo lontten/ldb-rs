@@ -25,14 +25,30 @@ pub enum DbKind {
 pub trait SqlExecutor: Send + Sync {
     fn db_kind(&self) -> DbKind;
     fn dialect(&self) -> &dyn Dialect;
+
+    /// 执行 DML（INSERT/UPDATE/DELETE），返回 `rows_affected`；不适用于 SELECT 标量或存在性查询。
     fn execute_built(
         &self,
         built: &BuiltSql,
     ) -> impl std::future::Future<Output = Result<u64, LdbError>> + Send;
+
+    /// 执行 SELECT 多行查询，返回结果行数；供 `first` / `list` 等使用。
     fn query_rows(
         &self,
         built: &BuiltSql,
     ) -> impl std::future::Future<Output = Result<u64, LdbError>> + Send;
+
+    /// 执行 SELECT 标量查询（如 `COUNT(*)`），读取第一列数值；供 `count` 使用。
+    fn query_scalar_u64(
+        &self,
+        built: &BuiltSql,
+    ) -> impl std::future::Future<Output = Result<u64, LdbError>> + Send;
+
+    /// 执行 SELECT 存在性查询（如 `SELECT 1 … LIMIT 1`），判断是否有匹配行；供 `has` 使用。
+    fn query_exists(
+        &self,
+        built: &BuiltSql,
+    ) -> impl std::future::Future<Output = Result<bool, LdbError>> + Send;
 }
 
 /// MySQL 连接池引擎。
@@ -129,6 +145,82 @@ pub(crate) fn bind_pg<'q>(
     }
 }
 
+// 从 MySQL 查询行第一列解析 COUNT 标量（`i64` → `u64`）。
+pub(crate) fn mysql_row_first_u64(row: &sqlx::mysql::MySqlRow) -> Result<u64, LdbError> {
+    use sqlx::Row;
+    let n: i64 = row
+        .try_get(0)
+        .map_err(|e| LdbError::SqlBuild(e.to_string()))?;
+    Ok(n as u64)
+}
+
+// 从 PostgreSQL 查询行第一列解析 COUNT 标量（`i64` → `u64`）。
+pub(crate) fn pg_row_first_u64(row: &sqlx::postgres::PgRow) -> Result<u64, LdbError> {
+    use sqlx::Row;
+    let n: i64 = row
+        .try_get(0)
+        .map_err(|e| LdbError::SqlBuild(e.to_string()))?;
+    Ok(n as u64)
+}
+
+// MySQL：`dialect_exec_sql(..., for_query: true)` 后 `fetch_one` 读取标量。
+async fn mysql_query_scalar_u64(
+    pool: &Pool<MySql>,
+    built: &BuiltSql,
+    dialect: &dyn Dialect,
+) -> Result<u64, LdbError> {
+    let (sql, _) = crate::sql_build::dialect_exec_sql(dialect, built, true);
+    let mut q = sqlx::query(&sql);
+    for v in &built.arg_list {
+        q = bind_mysql(q, v);
+    }
+    let row = q.fetch_one(pool).await?;
+    mysql_row_first_u64(&row)
+}
+
+// MySQL：`dialect_exec_sql(..., for_query: true)` 后 `fetch_optional` 判断行是否存在。
+async fn mysql_query_exists(
+    pool: &Pool<MySql>,
+    built: &BuiltSql,
+    dialect: &dyn Dialect,
+) -> Result<bool, LdbError> {
+    let (sql, _) = crate::sql_build::dialect_exec_sql(dialect, built, true);
+    let mut q = sqlx::query(&sql);
+    for v in &built.arg_list {
+        q = bind_mysql(q, v);
+    }
+    Ok(q.fetch_optional(pool).await?.is_some())
+}
+
+// PostgreSQL：`dialect_exec_sql(..., for_query: true)` 后 `fetch_one` 读取标量。
+async fn pg_query_scalar_u64(
+    pool: &Pool<Postgres>,
+    built: &BuiltSql,
+    dialect: &dyn Dialect,
+) -> Result<u64, LdbError> {
+    let (sql, _) = crate::sql_build::dialect_exec_sql(dialect, built, true);
+    let mut q = sqlx::query(&sql);
+    for v in &built.arg_list {
+        q = bind_pg(q, v);
+    }
+    let row = q.fetch_one(pool).await?;
+    pg_row_first_u64(&row)
+}
+
+// PostgreSQL：`dialect_exec_sql(..., for_query: true)` 后 `fetch_optional` 判断行是否存在。
+async fn pg_query_exists(
+    pool: &Pool<Postgres>,
+    built: &BuiltSql,
+    dialect: &dyn Dialect,
+) -> Result<bool, LdbError> {
+    let (sql, _) = crate::sql_build::dialect_exec_sql(dialect, built, true);
+    let mut q = sqlx::query(&sql);
+    for v in &built.arg_list {
+        q = bind_pg(q, v);
+    }
+    Ok(q.fetch_optional(pool).await?.is_some())
+}
+
 impl SqlExecutor for MysqlEngine {
     fn db_kind(&self) -> DbKind {
         DbKind::Mysql
@@ -154,6 +246,14 @@ impl SqlExecutor for MysqlEngine {
             q = bind_mysql(q, v);
         }
         Ok(q.fetch_all(&self.pool).await?.len() as u64)
+    }
+
+    async fn query_scalar_u64(&self, built: &BuiltSql) -> Result<u64, LdbError> {
+        mysql_query_scalar_u64(&self.pool, built, self.dialect()).await
+    }
+
+    async fn query_exists(&self, built: &BuiltSql) -> Result<bool, LdbError> {
+        mysql_query_exists(&self.pool, built, self.dialect()).await
     }
 }
 
@@ -182,6 +282,14 @@ impl SqlExecutor for PgEngine {
             q = bind_pg(q, v);
         }
         Ok(q.fetch_all(&self.pool).await?.len() as u64)
+    }
+
+    async fn query_scalar_u64(&self, built: &BuiltSql) -> Result<u64, LdbError> {
+        pg_query_scalar_u64(&self.pool, built, self.dialect()).await
+    }
+
+    async fn query_exists(&self, built: &BuiltSql) -> Result<bool, LdbError> {
+        pg_query_exists(&self.pool, built, self.dialect()).await
     }
 }
 
@@ -245,6 +353,22 @@ impl SqlExecutor for MockExecutor {
         rec.arg_list = built.arg_list.clone();
         Ok(0)
     }
+
+    // 测试桩：固定返回 1，模拟 COUNT 结果。
+    async fn query_scalar_u64(&self, built: &BuiltSql) -> Result<u64, LdbError> {
+        let mut rec = self.recorded.lock().unwrap();
+        rec.sql = built.sql.clone();
+        rec.arg_list = built.arg_list.clone();
+        Ok(1)
+    }
+
+    // 测试桩：SQL 含 `SELECT` 时视为存在匹配行。
+    async fn query_exists(&self, built: &BuiltSql) -> Result<bool, LdbError> {
+        let mut rec = self.recorded.lock().unwrap();
+        rec.sql = built.sql.clone();
+        rec.arg_list = built.arg_list.clone();
+        Ok(built.sql.contains("SELECT"))
+    }
 }
 
 #[cfg(test)]
@@ -305,6 +429,24 @@ mod tests {
         };
         assert_eq!(mock.query_rows(&built).await.unwrap(), 0);
         assert_eq!(mock.last_sql().sql, "SELECT 1");
+    }
+
+    #[tokio::test]
+    async fn mock_query_scalar_and_exists() {
+        let mock = MockExecutor::default();
+        let count_built = crate::sql_build::BuiltSql {
+            sql: "SELECT COUNT(*) FROM t".into(),
+            arg_list: vec![],
+        };
+        assert_eq!(mock.query_scalar_u64(&count_built).await.unwrap(), 1);
+        assert_eq!(mock.last_sql().sql, "SELECT COUNT(*) FROM t");
+
+        let has_built = crate::sql_build::BuiltSql {
+            sql: "SELECT 1 FROM t LIMIT 1".into(),
+            arg_list: vec![],
+        };
+        assert!(mock.query_exists(&has_built).await.unwrap());
+        assert_eq!(mock.last_sql().sql, "SELECT 1 FROM t LIMIT 1");
     }
 
     #[test]

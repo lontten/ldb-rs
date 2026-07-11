@@ -149,6 +149,54 @@ impl SqlExecutor for Transaction {
             }
         }
     }
+
+    async fn query_scalar_u64(&self, built: &crate::sql_build::BuiltSql) -> Result<u64, LdbError> {
+        match self {
+            Transaction::Mysql(tx) => {
+                let (sql, _) = crate::sql_build::dialect_exec_sql(self.dialect(), built, true);
+                let mut q = sqlx::query(&sql);
+                for v in &built.arg_list {
+                    q = crate::exec::bind_mysql(q, v);
+                }
+                let mut guard = tx.lock().await;
+                let row = q.fetch_one(&mut **guard).await?;
+                crate::exec::mysql_row_first_u64(&row)
+            }
+            Transaction::Pg(tx) => {
+                let (sql, _) = crate::sql_build::dialect_exec_sql(self.dialect(), built, true);
+                let mut q = sqlx::query(&sql);
+                for v in &built.arg_list {
+                    q = crate::exec::bind_pg(q, v);
+                }
+                let mut guard = tx.lock().await;
+                let row = q.fetch_one(&mut **guard).await?;
+                crate::exec::pg_row_first_u64(&row)
+            }
+        }
+    }
+
+    async fn query_exists(&self, built: &crate::sql_build::BuiltSql) -> Result<bool, LdbError> {
+        match self {
+            Transaction::Mysql(tx) => {
+                let (sql, _) = crate::sql_build::dialect_exec_sql(self.dialect(), built, true);
+                let mut q = sqlx::query(&sql);
+                for v in &built.arg_list {
+                    q = crate::exec::bind_mysql(q, v);
+                }
+                let mut guard = tx.lock().await;
+                Ok(q.fetch_optional(&mut **guard).await?.is_some())
+            }
+            Transaction::Pg(tx) => {
+                let (sql, _) = crate::sql_build::dialect_exec_sql(self.dialect(), built, true);
+                let mut q = sqlx::query(&sql);
+                for v in &built.arg_list {
+                    q = crate::exec::bind_pg(q, v);
+                }
+                let mut guard = tx.lock().await;
+                Ok(q.fetch_optional(&mut **guard).await?.is_some())
+            }
+        }
+    }
 }
 
 impl Engine for Transaction {
