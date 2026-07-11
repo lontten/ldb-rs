@@ -22,3 +22,14 @@ serde = { workspace = true }
 default = ["mysql", "postgres"]
 mysql = ["sqlx/mysql"]
 postgres = ["sqlx/postgres"]
+integration = []
+test-util = []
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+criterion = { version = "0.5", features = ["async_tokio"] }
+
+[[bench]]
+name = "crud_bench"
+harness = false
+required-features = ["integration"]

@@ -17,7 +17,7 @@ alwaysApply: false
 | Crate | 职责 |
 |-------|------|
 | `ldb` | 用户门面；`pub use ldb_core::*` + `pub use ldb_macros::*` |
-| `ldb-core` | `Engine`、`Dialect`、`WhereBuilder`、`ExtraContext`、配置与错误 |
+| `ldb-core` | `Engine`、`Dialect`、`WhereBuilder`、CRUD Builder、配置与错误 |
 | `ldb-macros` | `#[derive(LdbModel)]`（必须独立 proc-macro crate） |
 
 ## 术语
@@ -25,7 +25,7 @@ alwaysApply: false
 - 列映射用 struct 字段上的 **`db`** attribute，不用 schema 表示结构定义
 - 表配置概念：**`TableConf`**（表名、主键列、自增列）
 - 条件构建：**`WhereBuilder`**，工厂函数 **`w()`**
-- 查询扩展：**`ExtraContext`**，工厂函数 **`e()`**
+- CRUD：**入口函数 + Builder 链式配置 + `.await?`**（如 `insert(&db, &mut m).await?`）
 - 方言 trait：**`Dialect`**
 - 可空字段：**`Option<T>`**
 

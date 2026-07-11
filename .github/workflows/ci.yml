@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  unit:
+    name: unit
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -Dwarnings
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-llvm-cov
+        run: cargo install cargo-llvm-cov
+      - run: cargo fmt --all --check
+      - run: cargo clippy --all-targets --all-features -- -D warnings
+      - run: cargo test --all
+      - run: cargo llvm-cov --workspace --summary-only --fail-under-lines 90 --ignore-filename-regex='ldb-core/src/(connect|engine|exec)\.rs'
+
+  integration:
+    name: integration
+    runs-on: ubuntu-latest
+    env:
+      LDB_MYSQL_URL: mysql://root:test@127.0.0.1:3306/ldb_test
+      LDB_PG_URL: postgres://postgres:test@127.0.0.1:5432/ldb_test
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: test
+          MYSQL_DATABASE: ldb_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -ptest"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: ldb_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d ldb_test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --package ldb-core --features integration -- --test-threads=1
+
+  benchmark:
+    name: benchmark
+    runs-on: ubuntu-latest
+    env:
+      LDB_MYSQL_URL: mysql://root:test@127.0.0.1:3306/ldb_test
+      LDB_PG_URL: postgres://postgres:test@127.0.0.1:5432/ldb_test
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: test
+          MYSQL_DATABASE: ldb_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -ptest"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: ldb_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d ldb_test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Setup tables
+        run: |
+          cargo test --package ldb-core --features integration -- --test-threads=1 mysql_crud_smoke pg_crud_smoke
+      - run: cargo bench --package ldb-core --features integration -- --noplot
+      - uses: actions/upload-artifact@v4
+        with:
+          name: criterion-report
+          path: target/criterion
+          if-no-files-found: ignore
