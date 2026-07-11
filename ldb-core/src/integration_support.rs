@@ -31,22 +31,40 @@ pub fn pg_url() -> Option<String> {
     std::env::var("LDB_PG_URL").ok()
 }
 
-pub async fn setup_mysql() -> Option<MysqlEngine> {
-    let url = mysql_url()?;
-    let engine = crate::connect_mysql_url(&url).await.ok()?;
-    engine.ping().await.ok()?;
-    engine.exec_sql(MYSQL_DDL).await.ok()?;
-    engine.exec_sql("TRUNCATE TABLE t_user").await.ok()?;
-    Some(engine)
+async fn open_mysql_engine(url: &str) -> Result<MysqlEngine, LdbError> {
+    let engine = crate::connect_mysql_url(url).await?;
+    engine.ping().await?;
+    engine.exec_sql(MYSQL_DDL).await?;
+    engine.exec_sql("TRUNCATE TABLE t_user").await?;
+    Ok(engine)
 }
 
-pub async fn setup_pg() -> Option<PgEngine> {
-    let url = pg_url()?;
-    let engine = crate::connect_pg_url(&url).await.ok()?;
-    engine.ping().await.ok()?;
-    engine.exec_sql(PG_DDL).await.ok()?;
-    engine.exec_sql("TRUNCATE TABLE t_user").await.ok()?;
-    Some(engine)
+async fn open_pg_engine(url: &str) -> Result<PgEngine, LdbError> {
+    let engine = crate::connect_pg_url(url).await?;
+    engine.ping().await?;
+    engine.exec_sql(PG_DDL).await?;
+    engine.exec_sql("TRUNCATE TABLE t_user").await?;
+    Ok(engine)
+}
+
+/// 集成测试入口：未设置 `LDB_MYSQL_URL` 时由 `#[ignore]` 跳过；已设置但连不上则 panic。
+pub async fn require_mysql() -> MysqlEngine {
+    let url = mysql_url().unwrap_or_else(|| {
+        panic!("LDB_MYSQL_URL must be set (run with --include-ignored)");
+    });
+    open_mysql_engine(&url).await.unwrap_or_else(|e| {
+        panic!("LDB_MYSQL_URL is set but MySQL is unreachable: {e}");
+    })
+}
+
+/// 集成测试入口：未设置 `LDB_PG_URL` 时由 `#[ignore]` 跳过；已设置但连不上则 panic。
+pub async fn require_pg() -> PgEngine {
+    let url = pg_url().unwrap_or_else(|| {
+        panic!("LDB_PG_URL must be set (run with --include-ignored)");
+    });
+    open_pg_engine(&url).await.unwrap_or_else(|e| {
+        panic!("LDB_PG_URL is set but PostgreSQL is unreachable: {e}");
+    })
 }
 
 pub fn sample_user(name: &str, age: i32) -> TestUser {

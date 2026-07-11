@@ -98,6 +98,19 @@ pub fn derive_ldb_model(input: TokenStream) -> TokenStream {
         })
         .collect();
 
+    let set_field_match_arms: Vec<_> = named
+        .named
+        .iter()
+        .map(|f| {
+            let field_name = f.ident.as_ref().unwrap();
+            let field_name_str = field_name.to_string();
+            let assign_expr = option_field_from_sql_value(&f.ty, field_name);
+            quote! {
+                #field_name_str => #assign_expr
+            }
+        })
+        .collect();
+
     let expanded = quote! {
         impl ::ldb_core::model::LdbModel for #name {
             fn table_conf() -> &'static ::ldb_core::model::TableConf {
@@ -117,6 +130,17 @@ pub fn derive_ldb_model(input: TokenStream) -> TokenStream {
                 match field_name {
                     #(#field_match_arms,)*
                     _ => None,
+                }
+            }
+
+            fn set_field_sql_value(
+                &mut self,
+                field_name: &str,
+                value: ::ldb_core::sql_value::SqlValue,
+            ) -> Result<(), ::ldb_core::error::LdbError> {
+                match field_name {
+                    #(#set_field_match_arms,)*
+                    _ => Ok(()),
                 }
             }
         }
@@ -156,4 +180,100 @@ fn option_field_to_sql_value(ty: &Type, field_ident: &syn::Ident) -> proc_macro2
         };
     }
     quote! { None }
+}
+
+fn option_field_from_sql_value(ty: &Type, field_ident: &syn::Ident) -> proc_macro2::TokenStream {
+    let Type::Path(type_path) = ty else {
+        return quote! { Ok(()) };
+    };
+    let Some(segment) = type_path.path.segments.last() else {
+        return quote! { Ok(()) };
+    };
+    if segment.ident != "Option" {
+        return quote! { Ok(()) };
+    }
+    if let syn::PathArguments::AngleBracketed(args) = &segment.arguments
+        && let Some(syn::GenericArgument::Type(inner)) = args.args.first()
+    {
+        let inner_str = quote!(#inner).to_string().replace(' ', "");
+        let mismatch = quote! {
+            Err(::ldb_core::error::LdbError::ModelMapping(format!(
+                "字段 `{}` 类型不匹配",
+                field_name
+            )))
+        };
+        return match inner_str.as_str() {
+            "i64" => quote! {
+                match value {
+                    ::ldb_core::sql_value::SqlValue::Null => {
+                        self.#field_ident = None;
+                        Ok(())
+                    }
+                    ::ldb_core::sql_value::SqlValue::I64(n) => {
+                        self.#field_ident = Some(n);
+                        Ok(())
+                    }
+                    _ => #mismatch,
+                }
+            },
+            "i32" | "u64" | "u32" => quote! {
+                match value {
+                    ::ldb_core::sql_value::SqlValue::Null => {
+                        self.#field_ident = None;
+                        Ok(())
+                    }
+                    ::ldb_core::sql_value::SqlValue::I64(n) => {
+                        self.#field_ident = Some(n as #inner);
+                        Ok(())
+                    }
+                    _ => #mismatch,
+                }
+            },
+            "String" => quote! {
+                match value {
+                    ::ldb_core::sql_value::SqlValue::Null => {
+                        self.#field_ident = None;
+                        Ok(())
+                    }
+                    ::ldb_core::sql_value::SqlValue::String(s) => {
+                        self.#field_ident = Some(s);
+                        Ok(())
+                    }
+                    _ => #mismatch,
+                }
+            },
+            "bool" => quote! {
+                match value {
+                    ::ldb_core::sql_value::SqlValue::Null => {
+                        self.#field_ident = None;
+                        Ok(())
+                    }
+                    ::ldb_core::sql_value::SqlValue::Bool(b) => {
+                        self.#field_ident = Some(b);
+                        Ok(())
+                    }
+                    _ => #mismatch,
+                }
+            },
+            "f64" => quote! {
+                match value {
+                    ::ldb_core::sql_value::SqlValue::Null => {
+                        self.#field_ident = None;
+                        Ok(())
+                    }
+                    ::ldb_core::sql_value::SqlValue::F64(n) => {
+                        self.#field_ident = Some(n);
+                        Ok(())
+                    }
+                    ::ldb_core::sql_value::SqlValue::I64(n) => {
+                        self.#field_ident = Some(n as f64);
+                        Ok(())
+                    }
+                    _ => #mismatch,
+                }
+            },
+            _ => quote! { Ok(()) },
+        };
+    }
+    quote! { Ok(()) }
 }

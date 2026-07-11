@@ -9,6 +9,7 @@ use sqlx::{MySql, Pool, Postgres};
 use crate::config::{MysqlConfig, PgConfig, PoolConfig};
 use crate::dialect::Dialect;
 use crate::error::LdbError;
+use crate::model::{LdbModel, hydrate_model};
 use crate::mysql_dialect::MysqlDialect;
 use crate::pg_dialect::PgDialect;
 use crate::sql_build::BuiltSql;
@@ -32,11 +33,17 @@ pub trait SqlExecutor: Send + Sync {
         built: &BuiltSql,
     ) -> impl std::future::Future<Output = Result<u64, LdbError>> + Send;
 
-    /// 执行 SELECT 多行查询，返回结果行数；供 `first` / `list` 等使用。
+    /// 执行 SELECT 多行查询，返回结果行数；供基准测试等使用。
     fn query_rows(
         &self,
         built: &BuiltSql,
     ) -> impl std::future::Future<Output = Result<u64, LdbError>> + Send;
+
+    /// 执行 SELECT 并将结果行映射为模型列表；供 `first` / `list` 使用。
+    fn fetch_models<T: LdbModel + Default>(
+        &self,
+        built: &BuiltSql,
+    ) -> impl std::future::Future<Output = Result<Vec<T>, LdbError>> + Send;
 
     /// 执行 SELECT 标量查询（如 `COUNT(*)`），读取第一列数值；供 `count` 使用。
     fn query_scalar_u64(
@@ -163,6 +170,105 @@ pub(crate) fn pg_row_first_u64(row: &sqlx::postgres::PgRow) -> Result<u64, LdbEr
     Ok(n as u64)
 }
 
+pub(crate) fn mysql_read_column(
+    row: &sqlx::mysql::MySqlRow,
+    column: &str,
+) -> Result<SqlValue, LdbError> {
+    use sqlx::Row;
+    if let Ok(v) = row.try_get::<Option<i64>, _>(column) {
+        return Ok(v.map(SqlValue::I64).unwrap_or(SqlValue::Null));
+    }
+    if let Ok(v) = row.try_get::<Option<i32>, _>(column) {
+        return Ok(v.map(|n| SqlValue::I64(n as i64)).unwrap_or(SqlValue::Null));
+    }
+    if let Ok(v) = row.try_get::<Option<String>, _>(column) {
+        return Ok(v.map(SqlValue::String).unwrap_or(SqlValue::Null));
+    }
+    if let Ok(v) = row.try_get::<Option<bool>, _>(column) {
+        return Ok(v.map(SqlValue::Bool).unwrap_or(SqlValue::Null));
+    }
+    if let Ok(v) = row.try_get::<Option<f64>, _>(column) {
+        return Ok(v.map(SqlValue::F64).unwrap_or(SqlValue::Null));
+    }
+    Err(LdbError::ModelMapping(format!("无法读取列 `{column}`")))
+}
+
+pub(crate) fn pg_read_column(
+    row: &sqlx::postgres::PgRow,
+    column: &str,
+) -> Result<SqlValue, LdbError> {
+    use sqlx::Row;
+    if let Ok(v) = row.try_get::<Option<i64>, _>(column) {
+        return Ok(v.map(SqlValue::I64).unwrap_or(SqlValue::Null));
+    }
+    if let Ok(v) = row.try_get::<Option<i32>, _>(column) {
+        return Ok(v.map(|n| SqlValue::I64(n as i64)).unwrap_or(SqlValue::Null));
+    }
+    if let Ok(v) = row.try_get::<Option<String>, _>(column) {
+        return Ok(v.map(SqlValue::String).unwrap_or(SqlValue::Null));
+    }
+    if let Ok(v) = row.try_get::<Option<bool>, _>(column) {
+        return Ok(v.map(SqlValue::Bool).unwrap_or(SqlValue::Null));
+    }
+    if let Ok(v) = row.try_get::<Option<f64>, _>(column) {
+        return Ok(v.map(SqlValue::F64).unwrap_or(SqlValue::Null));
+    }
+    Err(LdbError::ModelMapping(format!("无法读取列 `{column}`")))
+}
+
+fn column_name_list_for<T: LdbModel>() -> Vec<String> {
+    T::column_meta_list()
+        .iter()
+        .map(|m| m.column_name.to_string())
+        .collect()
+}
+
+async fn mysql_fetch_models<T: LdbModel + Default>(
+    pool: &Pool<MySql>,
+    built: &BuiltSql,
+    dialect: &dyn Dialect,
+) -> Result<Vec<T>, LdbError> {
+    let (sql, _) = crate::sql_build::dialect_exec_sql(dialect, built, true);
+    let mut q = sqlx::query(&sql);
+    for v in &built.arg_list {
+        q = bind_mysql(q, v);
+    }
+    let rows = q.fetch_all(pool).await?;
+    let column_name_list = column_name_list_for::<T>();
+    let mut out = Vec::with_capacity(rows.len());
+    for row in rows {
+        let column_value_list: Vec<(String, SqlValue)> = column_name_list
+            .iter()
+            .map(|col| mysql_read_column(&row, col).map(|val| (col.clone(), val)))
+            .collect::<Result<_, _>>()?;
+        out.push(hydrate_model(&column_value_list)?);
+    }
+    Ok(out)
+}
+
+async fn pg_fetch_models<T: LdbModel + Default>(
+    pool: &Pool<Postgres>,
+    built: &BuiltSql,
+    dialect: &dyn Dialect,
+) -> Result<Vec<T>, LdbError> {
+    let (sql, _) = crate::sql_build::dialect_exec_sql(dialect, built, true);
+    let mut q = sqlx::query(&sql);
+    for v in &built.arg_list {
+        q = bind_pg(q, v);
+    }
+    let rows = q.fetch_all(pool).await?;
+    let column_name_list = column_name_list_for::<T>();
+    let mut out = Vec::with_capacity(rows.len());
+    for row in rows {
+        let column_value_list: Vec<(String, SqlValue)> = column_name_list
+            .iter()
+            .map(|col| pg_read_column(&row, col).map(|val| (col.clone(), val)))
+            .collect::<Result<_, _>>()?;
+        out.push(hydrate_model(&column_value_list)?);
+    }
+    Ok(out)
+}
+
 // MySQL：`dialect_exec_sql(..., for_query: true)` 后 `fetch_one` 读取标量。
 async fn mysql_query_scalar_u64(
     pool: &Pool<MySql>,
@@ -248,6 +354,13 @@ impl SqlExecutor for MysqlEngine {
         Ok(q.fetch_all(&self.pool).await?.len() as u64)
     }
 
+    async fn fetch_models<T: LdbModel + Default>(
+        &self,
+        built: &BuiltSql,
+    ) -> Result<Vec<T>, LdbError> {
+        mysql_fetch_models(&self.pool, built, self.dialect()).await
+    }
+
     async fn query_scalar_u64(&self, built: &BuiltSql) -> Result<u64, LdbError> {
         mysql_query_scalar_u64(&self.pool, built, self.dialect()).await
     }
@@ -284,6 +397,13 @@ impl SqlExecutor for PgEngine {
         Ok(q.fetch_all(&self.pool).await?.len() as u64)
     }
 
+    async fn fetch_models<T: LdbModel + Default>(
+        &self,
+        built: &BuiltSql,
+    ) -> Result<Vec<T>, LdbError> {
+        pg_fetch_models(&self.pool, built, self.dialect()).await
+    }
+
     async fn query_scalar_u64(&self, built: &BuiltSql) -> Result<u64, LdbError> {
         pg_query_scalar_u64(&self.pool, built, self.dialect()).await
     }
@@ -318,15 +438,24 @@ pub struct RecordedSql {
     pub arg_list: Vec<SqlValue>,
 }
 
+/// 单元测试用：单列名 + 值的行。
+pub type MockRow = Vec<(String, SqlValue)>;
+
 /// Mock 执行器：不连接数据库，仅记录 SQL。
 #[derive(Debug, Default)]
 pub struct MockExecutor {
     pub recorded: Arc<Mutex<RecordedSql>>,
+    mock_row_list: Arc<Mutex<Vec<MockRow>>>,
 }
 
 impl MockExecutor {
     pub fn last_sql(&self) -> RecordedSql {
         self.recorded.lock().unwrap().clone()
+    }
+
+    /// 预设 SELECT 返回的行（列名 + 值）；供 `first` / `list` 单元测试。
+    pub fn set_mock_rows(&self, row_list: Vec<MockRow>) {
+        *self.mock_row_list.lock().unwrap() = row_list;
     }
 }
 
@@ -351,7 +480,21 @@ impl SqlExecutor for MockExecutor {
         let mut rec = self.recorded.lock().unwrap();
         rec.sql = built.sql.clone();
         rec.arg_list = built.arg_list.clone();
-        Ok(0)
+        Ok(self.mock_row_list.lock().unwrap().len() as u64)
+    }
+
+    async fn fetch_models<T: LdbModel + Default>(
+        &self,
+        built: &BuiltSql,
+    ) -> Result<Vec<T>, LdbError> {
+        let mut rec = self.recorded.lock().unwrap();
+        rec.sql = built.sql.clone();
+        rec.arg_list = built.arg_list.clone();
+        let row_list = self.mock_row_list.lock().unwrap().clone();
+        row_list
+            .into_iter()
+            .map(|column_value_list| hydrate_model(&column_value_list))
+            .collect()
     }
 
     // 测试桩：固定返回 1，模拟 COUNT 结果。

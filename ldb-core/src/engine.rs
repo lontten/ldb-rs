@@ -150,6 +150,65 @@ impl SqlExecutor for Transaction {
         }
     }
 
+    async fn fetch_models<T: crate::model::LdbModel + Default>(
+        &self,
+        built: &crate::sql_build::BuiltSql,
+    ) -> Result<Vec<T>, LdbError> {
+        match self {
+            Transaction::Mysql(tx) => {
+                let (sql, _) = crate::sql_build::dialect_exec_sql(self.dialect(), built, true);
+                let mut q = sqlx::query(&sql);
+                for v in &built.arg_list {
+                    q = crate::exec::bind_mysql(q, v);
+                }
+                let mut guard = tx.lock().await;
+                let rows = q.fetch_all(&mut **guard).await?;
+                let column_name_list: Vec<String> = T::column_meta_list()
+                    .iter()
+                    .map(|m| m.column_name.to_string())
+                    .collect();
+                let mut out = Vec::with_capacity(rows.len());
+                for row in rows {
+                    let column_value_list: Vec<(String, crate::sql_value::SqlValue)> =
+                        column_name_list
+                            .iter()
+                            .map(|col| {
+                                crate::exec::mysql_read_column(&row, col)
+                                    .map(|val| (col.clone(), val))
+                            })
+                            .collect::<Result<_, _>>()?;
+                    out.push(crate::model::hydrate_model(&column_value_list)?);
+                }
+                Ok(out)
+            }
+            Transaction::Pg(tx) => {
+                let mut guard = tx.lock().await;
+                let (sql, _) = crate::sql_build::dialect_exec_sql(self.dialect(), built, true);
+                let mut q = sqlx::query(&sql);
+                for v in &built.arg_list {
+                    q = crate::exec::bind_pg(q, v);
+                }
+                let rows = q.fetch_all(&mut **guard).await?;
+                let column_name_list: Vec<String> = T::column_meta_list()
+                    .iter()
+                    .map(|m| m.column_name.to_string())
+                    .collect();
+                let mut out = Vec::with_capacity(rows.len());
+                for row in rows {
+                    let column_value_list: Vec<(String, crate::sql_value::SqlValue)> =
+                        column_name_list
+                            .iter()
+                            .map(|col| {
+                                crate::exec::pg_read_column(&row, col).map(|val| (col.clone(), val))
+                            })
+                            .collect::<Result<_, _>>()?;
+                    out.push(crate::model::hydrate_model(&column_value_list)?);
+                }
+                Ok(out)
+            }
+        }
+    }
+
     async fn query_scalar_u64(&self, built: &crate::sql_build::BuiltSql) -> Result<u64, LdbError> {
         match self {
             Transaction::Mysql(tx) => {

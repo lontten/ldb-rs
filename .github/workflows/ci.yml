@@ -77,7 +77,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test --package ldb-core --features integration -- --test-threads=1
+      - run: cargo test --package ldb-core --features integration -- --test-threads=1 --include-ignored
 
   benchmark:
     name: benchmark
@@ -116,7 +116,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Setup tables
         run: |
-          cargo test --package ldb-core --features integration -- --test-threads=1 mysql_crud_smoke pg_crud_smoke
+          cargo test --package ldb-core --features integration -- --test-threads=1 --include-ignored mysql_crud_smoke pg_crud_smoke
       - run: cargo bench --package ldb-core --features integration --bench crud_bench -- --noplot
       - uses: actions/upload-artifact@v6
         with:

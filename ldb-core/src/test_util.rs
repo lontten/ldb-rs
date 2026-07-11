@@ -2,6 +2,7 @@
 
 #![cfg(any(test, feature = "test-util", feature = "integration"))]
 
+use crate::error::LdbError;
 use crate::model::{ColumnMeta, LdbModel, TableConf};
 use crate::sql_value::SqlValue;
 
@@ -51,6 +52,34 @@ impl LdbModel for TestUser {
             _ => None,
         }
     }
+
+    fn set_field_sql_value(&mut self, field_name: &str, value: SqlValue) -> Result<(), LdbError> {
+        match field_name {
+            "id" => match value {
+                SqlValue::Null => self.id = None,
+                SqlValue::I64(n) => self.id = Some(n),
+                _ => {
+                    return Err(LdbError::ModelMapping("字段 `id` 类型不匹配".into()));
+                }
+            },
+            "name" => match value {
+                SqlValue::Null => self.name = None,
+                SqlValue::String(s) => self.name = Some(s),
+                _ => {
+                    return Err(LdbError::ModelMapping("字段 `name` 类型不匹配".into()));
+                }
+            },
+            "age" => match value {
+                SqlValue::Null => self.age = None,
+                SqlValue::I64(n) => self.age = Some(n as i32),
+                _ => {
+                    return Err(LdbError::ModelMapping("字段 `age` 类型不匹配".into()));
+                }
+            },
+            _ => {}
+        }
+        Ok(())
+    }
 }
 
 /// 条件模型。
@@ -75,5 +104,26 @@ impl LdbModel for TestUserWhere {
             "age" => self.age.map(|v| SqlValue::I64(v as i64)),
             _ => None,
         }
+    }
+
+    fn set_field_sql_value(&mut self, field_name: &str, value: SqlValue) -> Result<(), LdbError> {
+        match field_name {
+            "name" => match value {
+                SqlValue::Null => self.name = None,
+                SqlValue::String(s) => self.name = Some(s),
+                _ => {
+                    return Err(LdbError::ModelMapping("字段 `name` 类型不匹配".into()));
+                }
+            },
+            "age" => match value {
+                SqlValue::Null => self.age = None,
+                SqlValue::I64(n) => self.age = Some(n as i32),
+                _ => {
+                    return Err(LdbError::ModelMapping("字段 `age` 类型不匹配".into()));
+                }
+            },
+            _ => {}
+        }
+        Ok(())
     }
 }

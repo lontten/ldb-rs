@@ -70,7 +70,7 @@ select_entry!(count, CountBuilder);
 
 pub fn get_or_insert<'a, T, E>(engine: &'a E, candidate: &'a mut T) -> GetOrInsertBuilder<'a, E, T>
 where
-    T: LdbModel + Clone,
+    T: LdbModel + Clone + Default,
     E: Engine,
 {
     GetOrInsertBuilder {
@@ -142,7 +142,7 @@ select_methods!(CountBuilder<'a, E, T>);
 
 impl<'a, E, T> GetOrInsertBuilder<'a, E, T>
 where
-    T: LdbModel + Clone,
+    T: LdbModel + Clone + Default,
     E: Engine,
 {
     pub fn where_(mut self, wb: WhereBuilder) -> Self {
@@ -230,7 +230,7 @@ where
 
 impl<'a, E, T> IntoFuture for FirstBuilder<'a, E, T>
 where
-    T: LdbModel,
+    T: LdbModel + Default,
     E: Engine,
 {
     type Output = Result<Option<T>, LdbError>;
@@ -242,15 +242,15 @@ where
             if self.state.flags.dry_run {
                 return Ok(None);
             }
-            let _rows = self.engine.query_rows(&built).await?;
-            Ok(None)
+            let rows = self.engine.fetch_models::<T>(&built).await?;
+            Ok(rows.into_iter().next())
         })
     }
 }
 
 impl<'a, E, T> IntoFuture for ListBuilder<'a, E, T>
 where
-    T: LdbModel,
+    T: LdbModel + Default,
     E: Engine,
 {
     type Output = Result<Vec<T>, LdbError>;
@@ -262,15 +262,14 @@ where
             if self.state.flags.dry_run {
                 return Ok(vec![]);
             }
-            let _rows = self.engine.query_rows(&built).await?;
-            Ok(vec![])
+            self.engine.fetch_models::<T>(&built).await
         })
     }
 }
 
 impl<'a, E, T> IntoFuture for GetOrInsertBuilder<'a, E, T>
 where
-    T: LdbModel + Clone,
+    T: LdbModel + Clone + Default,
     E: Engine,
 {
     type Output = Result<T, LdbError>;
@@ -362,5 +361,55 @@ mod tests {
             .unwrap();
         assert_eq!(n, 1);
         assert!(has::<TestUser, _>(&mock).where_(wb).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn first_and_list_execute_on_mock() {
+        use crate::sql_value::SqlValue;
+
+        let mock = MockExecutor::default();
+        mock.set_mock_rows(vec![vec![
+            ("id".into(), SqlValue::I64(1)),
+            ("name".into(), SqlValue::String("tom".into())),
+            ("age".into(), SqlValue::I64(18)),
+        ]]);
+
+        let user = first::<TestUser, _>(&mock)
+            .where_(w().eq("id", 1))
+            .await
+            .unwrap()
+            .expect("expected row");
+        assert_eq!(user.name.as_deref(), Some("tom"));
+        assert_eq!(user.age, Some(18));
+
+        let rows = list::<TestUser, _>(&mock)
+            .where_(w().eq("id", 1))
+            .await
+            .unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].name.as_deref(), Some("tom"));
+    }
+
+    #[tokio::test]
+    async fn get_or_insert_returns_existing_on_mock() {
+        use crate::sql_value::SqlValue;
+
+        let mock = MockExecutor::default();
+        mock.set_mock_rows(vec![vec![
+            ("id".into(), SqlValue::I64(9)),
+            ("name".into(), SqlValue::String("exists".into())),
+            ("age".into(), SqlValue::I64(30)),
+        ]]);
+
+        let mut candidate = TestUser {
+            id: None,
+            name: Some("exists".into()),
+            age: Some(99),
+        };
+        let row = get_or_insert(&mock, &mut candidate)
+            .where_(w().eq("name", "exists"))
+            .await
+            .unwrap();
+        assert_eq!(row.age, Some(30));
     }
 }
