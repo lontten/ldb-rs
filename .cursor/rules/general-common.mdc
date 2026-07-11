@@ -11,6 +11,7 @@ alwaysApply: true
 - `general-{lang}.mdc`：仅该语言特有约定（如 `_list` / `List`）
 - `project-conventions.mdc`：当前项目自定义，复制到其他项目后改内容
 - `cursor-agent.mdc`：Cursor Plan / Agent 模式协作（先计划、Build 后执行）
+- `git-workflow.mdc`：Git commit / push 仅 UI 快捷按钮触发
 
 新增或调整规则时，按上述分层放入对应文件。
 

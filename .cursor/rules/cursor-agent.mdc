@@ -14,6 +14,14 @@ alwaysApply: true
 - **不提示切换模式**：用户描述实现内容或说「更新代码」，在 Plan 模式下视为 **plan iteration**，更新计划即可
 - **迭代即改计划**：补充需求、纠正方案 → 反映到计划（必要时 AskQuestion）
 
+### Plan 模式硬约束
+
+- **禁止**调用 `SwitchMode` 或任何形式请求用户「切换到 Agent」；执行权仅由用户点 **Build** 获得
+- **仅可编辑**：`.cursor/plans/*.plan.md`；只读查看其他文件
+- **禁止编辑**：源码、`.mdc` 规则、CI、除计划外的任何会改仓库的文件（Plan 模式下 Cursor 产品层亦会拦截非 markdown）
+- 用户要求改规则 / 代码 / 提交：视为 **plan iteration**，把具体改动写入当前计划（含文件路径与条文），**一句**提醒「请点 Build 执行」；不尝试写入、不因失败而请求切模式
+- 工具调用被系统拦截时：**停止**，把未完成项记入计划 todos；**不**重试 SwitchMode、不解释产品机制长篇大论
+
 ### 何时才算执行
 
 用户 **明确** 要求执行且 **已点 Build / 处于 Agent 模式** 时，才改代码并验证。
@@ -32,6 +40,7 @@ alwaysApply: true
 ## 与本仓库其他规则
 
 - 实现细节见 `general-common.mdc`、`general-rust.mdc`、`project-conventions.mdc`
+- Git commit / push 入口与流程见 `git-workflow.mdc`（仅 Diff 面板快捷按钮，聊天禁用）
 - 计划中的约定（如 `field_name`、变体级 `///`）落地时须与上述规则一致
 
 ## 项目暴露面与协作内容分界

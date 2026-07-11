@@ -1,0 +1,57 @@
+---
+description: Git commit、push 仅由 Cursor UI 快捷按钮触发
+alwaysApply: true
+---
+
+# Git 协作约定
+
+## 触发门槛
+
+| 来源 | commit | push |
+|------|--------|------|
+| 聊天「提交」「commit」「帮我 push」等 | **禁止** | **禁止** |
+| Cursor Diff 面板 **Commit** 按钮 | **允许** | — |
+| Cursor Diff 面板 **Push** 按钮 | — | **允许** |
+
+- 聊天请求 commit / push 时：**只回复一句**——「按本仓库约定，请手动点击上方 Commit / Push 快捷按钮。」不展开、不列步骤；**不**执行 `git commit` / `git push`
+- UI 按钮触发时（系统下发 `Execute the selected diff-tab commit/push action` 类指令）：视为明确授权，执行下方完整流程
+- **不主动** commit / push；不修改 `git config`；不执行 `push --force`、`reset --hard` 等破坏性命令，除非按钮附带指令且用户已批准
+- **PR**：无对等快捷按钮；聊天请求时同样一句带过，不执行
+
+本规则在 **commit / push 入口** 上优先于用户级「说提交就提交」类约定。
+
+## UI Commit 流程
+
+按钮触发后：
+
+1. 并行只读检查：`git status`、`git diff`（含 staged）、`git log -5`
+2. 只 stage 与本次改动相关的文件；排除无关文件、`.env`、凭据
+3. 用 HEREDOC 写 commit message
+4. 遵循本仓库 `git log` 风格：
+   - 前缀：`fix:`、`ci:`、`docs:`、`feat:` 等
+   - 中文说明「为什么」；一行标题 + 可选正文
+5. commit message **禁止**出现 Cursor / Agent / AI 等协作用语（见 `cursor-agent.mdc` 项目暴露面）
+6. 按钮指令含 **Do not push** 时不得 push
+7. pre-commit hook 失败：修复后**新建** commit，不 amend
+8. amend 仅当：按钮指令要求、或 hook 自动改文件需纳入；且 HEAD 为本会话创建、尚未 push
+
+## UI Push 流程
+
+按钮触发后：
+
+1. 仅 push 当前分支已有 commit；不 stage、不新建 commit（除非按钮指令另有说明）
+2. 本仓库 remote：`git@github.com:lontten/ldb-rs.git`（SSH）
+3. 若出现 `Permission denied (publickey)`：说明 Agent 环境常无法访问本机 SSH 密钥；建议 Fork 或 Cursor **集成终端** push；不反复重试
+4. 推 `main` 可能需用户批准；禁止对 `main` / `master` force push
+5. 已 push 的 commit 不 amend（除非用户明确要求并接受 force push）
+
+## 与 Fork / 本机终端
+
+- Fork、集成终端中的 Git 由用户自行操作，Agent 不干预
+- Agent 仅在 UI Commit / Push 按钮触发时介入 Git 写操作
+
+## 交叉引用
+
+- commit 文案暴露面：`cursor-agent.mdc`
+- Rust 改动验证后再 commit：`rust-verify` skill
+- Plan / Agent 模式分工：`cursor-agent.mdc`
