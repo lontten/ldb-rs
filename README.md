@@ -6,6 +6,17 @@
 - **crates.io 发布名**：`ldb`（`cargo add ldb`）
 - **当前状态**：workspace 骨架；**目标 API 已在 doc 定稿，实现进行中**
 
+## 质量
+
+[![CI](https://github.com/lontten/ldb-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/lontten/ldb-rs/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/lontten/ldb-rs/branch/main/graph/badge.svg)](https://codecov.io/gh/lontten/ldb-rs)
+
+| 指标 | 说明 |
+|------|------|
+| 测试 | CI 运行 `cargo test --all` 与 integration 测试 |
+| 覆盖率 | 行覆盖率门槛 90%（`connect` / `engine` / `exec` 除外） |
+| 性能基准 | [Criterion 报告](https://lontten.github.io/ldb-rs/report/index.html)（main 分支每次推送更新） |
+
 ## 技术栈
 
 | 方面 | 选择 |

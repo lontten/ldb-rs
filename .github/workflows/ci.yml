@@ -9,6 +9,11 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 jobs:
   unit:
     name: unit
@@ -26,7 +31,16 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --all-targets --all-features -- -D warnings
       - run: cargo test --all
-      - run: cargo llvm-cov --workspace --summary-only --fail-under-lines 90 --ignore-filename-regex='ldb-core/src/(connect|engine|exec)\.rs'
+      - name: Coverage
+        run: |
+          cargo llvm-cov --workspace \
+            --lcov --output-path lcov.info \
+            --summary-only --fail-under-lines 90 \
+            --ignore-filename-regex='ldb-core/src/(connect|engine|exec)\.rs'
+      - uses: codecov/codecov-action@v5
+        with:
+          files: lcov.info
+          fail_ci_if_error: false
 
   integration:
     name: integration
@@ -109,3 +123,19 @@ jobs:
           name: criterion-report
           path: target/criterion
           if-no-files-found: ignore
+      - uses: actions/upload-pages-artifact@v3
+        if: github.ref == 'refs/heads/main'
+        with:
+          path: target/criterion
+
+  deploy-pages:
+    name: deploy-pages
+    needs: benchmark
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
