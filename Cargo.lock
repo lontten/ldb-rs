@@ -1701,6 +1701,7 @@ dependencies = [
  "sea-orm",
  "serde",
  "sqlx 0.8.6",
+ "sqlx 0.9.0",
  "tokio",
  "welds",
 ]
@@ -3522,13 +3523,17 @@ dependencies = [
  "log",
  "memchr",
  "percent-encoding",
+ "rustls",
  "serde",
  "serde_json",
  "sha2 0.10.9",
  "smallvec",
  "thiserror 2.0.18",
+ "tokio",
+ "tokio-stream",
  "tracing",
  "url",
+ "webpki-roots 1.0.8",
 ]
 
 [[package]]
@@ -3604,6 +3609,7 @@ dependencies = [
  "sqlx-sqlite 0.9.0",
  "syn 2.0.118",
  "thiserror 2.0.18",
+ "tokio",
  "url",
 ]
 

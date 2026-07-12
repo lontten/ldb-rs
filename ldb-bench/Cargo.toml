@@ -29,6 +29,13 @@ diesel = { version = "2.2", features = ["mysql", "postgres"] }
 diesel-async = { version = "0.5", features = ["mysql", "postgres", "deadpool"] }
 
 welds = { version = "0.5", features = ["mysql", "postgres"] }
+# welds-connections 使用 sqlx 0.9 但未启用 runtime；别名依赖打开 feature 统一
+welds-sqlx = { package = "sqlx", version = "0.9", default-features = false, features = [
+    "runtime-tokio",
+    "tls-rustls",
+    "mysql",
+    "postgres",
+] }
 
 rbatis = { version = "4.6", features = ["rbatis-macro-driver"] }
 rbdc-mysql = { version = "4.6" }
