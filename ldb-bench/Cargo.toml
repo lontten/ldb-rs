@@ -1,0 +1,50 @@
+[package]
+name = "ldb-bench"
+description = "ldb 与常用 Rust ORM 的 CRUD 性能基准"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[lib]
+name = "ldb_bench"
+path = "src/lib.rs"
+
+[dependencies]
+ldb-core = { workspace = true, features = ["integration", "test-util", "mysql", "postgres"] }
+tokio = { workspace = true }
+sqlx = { workspace = true }
+serde = { workspace = true }
+
+sea-orm = { version = "~1.1", features = [
+    "sqlx-mysql",
+    "sqlx-postgres",
+    "runtime-tokio-rustls",
+    "macros",
+] }
+
+diesel = { version = "2.2", features = ["mysql", "postgres"] }
+diesel-async = { version = "0.5", features = ["mysql", "postgres", "deadpool"] }
+
+welds = { version = "0.5", features = ["mysql", "postgres"] }
+
+rbatis = { version = "4.6", features = ["rbatis-macro-driver"] }
+rbdc-mysql = { version = "4.6" }
+rbdc-pg = { version = "4.6" }
+rbs = { version = "4.6" }
+
+ormlite = { version = "0.24", default-features = false, features = [
+    "mysql",
+    "postgres",
+    "runtime-tokio-rustls",
+] }
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["async_tokio", "html_reports"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[[bench]]
+name = "crud_compare"
+harness = false

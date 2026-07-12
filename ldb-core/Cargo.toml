@@ -28,9 +28,3 @@ test-util = []
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
-criterion = { version = "0.5", features = ["async_tokio", "html_reports"] }
-
-[[bench]]
-name = "crud_bench"
-harness = false
-required-features = ["integration"]

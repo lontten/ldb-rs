@@ -1,5 +1,5 @@
 [workspace]
-members = ["ldb", "ldb-core", "ldb-macros"]
+members = ["ldb", "ldb-core", "ldb-macros", "ldb-bench"]
 resolver = "2"
 
 [workspace.package]
