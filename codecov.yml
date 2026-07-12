@@ -1,0 +1,9 @@
+coverage:
+  status:
+    project:
+      default:
+        target: 90%
+ignore:
+  - ldb-core/src/connect.rs
+  - ldb-core/src/engine.rs
+  - ldb-core/src/exec.rs

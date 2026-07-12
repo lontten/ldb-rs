@@ -40,7 +40,8 @@ jobs:
       - uses: codecov/codecov-action@v5
         with:
           files: lcov.info
-          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
 
   integration:
     name: integration
@@ -82,6 +83,9 @@ jobs:
   benchmark:
     name: benchmark
     runs-on: ubuntu-latest
+    concurrency:
+      group: pages-${{ github.ref }}
+      cancel-in-progress: true
     env:
       LDB_MYSQL_URL: mysql://root:test@127.0.0.1:3306/ldb_test
       LDB_PG_URL: postgres://postgres:test@127.0.0.1:5432/ldb_test
@@ -117,12 +121,18 @@ jobs:
       - name: Setup tables
         run: |
           cargo test --package ldb-core --features integration -- --test-threads=1 --include-ignored mysql_crud_smoke pg_crud_smoke
-      - run: cargo bench --package ldb-core --features integration --bench crud_bench -- --noplot
+      - run: cargo bench --package ldb-core --features integration --bench crud_bench
+      - name: Prepare Criterion Pages
+        run: |
+          test -f target/criterion/report/index.html
+          touch target/criterion/.nojekyll
       - uses: actions/upload-artifact@v6
         with:
           name: criterion-report
           path: target/criterion
           if-no-files-found: ignore
+      - uses: actions/configure-pages@v5
+        if: github.ref == 'refs/heads/main'
       - uses: actions/upload-pages-artifact@v3
         if: github.ref == 'refs/heads/main'
         with:
@@ -133,6 +143,9 @@ jobs:
     needs: benchmark
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    concurrency:
+      group: pages-${{ github.ref }}
+      cancel-in-progress: true
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
