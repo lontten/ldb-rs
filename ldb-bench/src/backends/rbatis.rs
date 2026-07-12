@@ -43,10 +43,7 @@ pub async fn run(
                 };
                 rb.exec(
                     sql,
-                    vec![
-                        rbs::value! {"name": format!("user_{i}")},
-                        rbs::value! {"age": i as i32},
-                    ],
+                    vec![rbs::value!(format!("user_{i}")), rbs::value!(i as i32)],
                 )
                 .await?;
             }
@@ -57,7 +54,7 @@ pub async fn run(
                 DbKind::Mysql => "UPDATE t_user SET age = ? WHERE id > 0",
                 DbKind::Postgres => "UPDATE t_user SET age = $1 WHERE id > 0",
             };
-            rb.exec(sql, vec![rbs::value! {"age": 99i32}]).await?;
+            rb.exec(sql, vec![rbs::value!(99i32)]).await?;
         }
         CrudOp::Delete => {
             reset_and_seed(db, n).await?;
@@ -78,9 +75,7 @@ pub async fn run(
                 DbKind::Mysql => "SELECT id, name, age FROM t_user WHERE id > 0 LIMIT ?",
                 DbKind::Postgres => "SELECT id, name, age FROM t_user WHERE id > 0 LIMIT $1",
             };
-            let _: Vec<BenchUser> = rb
-                .exec_decode(sql, vec![rbs::value! {"limit": n as i64}])
-                .await?;
+            let _: Vec<BenchUser> = rb.exec_decode(sql, vec![rbs::value!(n as i64)]).await?;
         }
         CrudOp::Count => {
             reset_and_seed(db, n).await?;
