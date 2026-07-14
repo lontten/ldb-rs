@@ -125,7 +125,7 @@ jobs:
       - name: Setup tables
         run: |
           cargo test --package ldb-core --features integration -- --test-threads=1 --include-ignored mysql_crud_smoke pg_crud_smoke
-      - run: cargo bench --package ldb-bench --bench crud_compare
+      - run: cargo bench --package ldb-bench --bench crud_compare --features diesel
       - name: Prepare Criterion Pages
         run: |
           test -f target/criterion/report/index.html

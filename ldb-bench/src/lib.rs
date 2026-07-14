@@ -2,6 +2,7 @@
 
 pub mod backends;
 pub mod ddl;
+#[cfg(feature = "diesel")]
 pub mod schema_diesel;
 
 use std::future::Future;
@@ -73,6 +74,7 @@ pub enum OrmKind {
     Ldb,
     Sqlx,
     Seaorm,
+    #[cfg(feature = "diesel")]
     Diesel,
     Welds,
     Rbatis,
@@ -80,6 +82,7 @@ pub enum OrmKind {
 }
 
 impl OrmKind {
+    #[cfg(feature = "diesel")]
     pub const ALL: [Self; 7] = [
         Self::Ldb,
         Self::Sqlx,
@@ -90,11 +93,22 @@ impl OrmKind {
         Self::Ormlite,
     ];
 
+    #[cfg(not(feature = "diesel"))]
+    pub const ALL: [Self; 6] = [
+        Self::Ldb,
+        Self::Sqlx,
+        Self::Seaorm,
+        Self::Welds,
+        Self::Rbatis,
+        Self::Ormlite,
+    ];
+
     pub fn label(self) -> &'static str {
         match self {
             Self::Ldb => "ldb",
             Self::Sqlx => "sqlx",
             Self::Seaorm => "seaorm",
+            #[cfg(feature = "diesel")]
             Self::Diesel => "diesel",
             Self::Welds => "welds",
             Self::Rbatis => "rbatis",

@@ -12,6 +12,9 @@ publish = false
 name = "ldb_bench"
 path = "src/lib.rs"
 
+[features]
+diesel = ["dep:diesel", "dep:diesel-async"]
+
 [dependencies]
 ldb-core = { workspace = true, features = ["integration", "test-util", "mysql", "postgres"] }
 tokio = { workspace = true }
@@ -25,8 +28,8 @@ sea-orm = { version = "~1.1", features = [
     "macros",
 ] }
 
-diesel = { version = "2.2", features = ["mysql", "postgres"] }
-diesel-async = { version = "0.5", features = ["mysql", "postgres", "deadpool"] }
+diesel = { version = "2.2", features = ["mysql", "postgres"], optional = true }
+diesel-async = { version = "0.5", features = ["mysql", "postgres", "deadpool"], optional = true }
 
 welds = { version = "0.5", features = ["mysql", "postgres"] }
 # welds-connections 使用 sqlx 0.9 但未启用 runtime；别名依赖打开 feature 统一

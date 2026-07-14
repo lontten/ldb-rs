@@ -1,5 +1,6 @@
 //! 各 ORM 后端实现。
 
+#[cfg(feature = "diesel")]
 mod diesel;
 mod ldb;
 mod ormlite;
@@ -20,6 +21,7 @@ pub async fn run(
         OrmKind::Ldb => ldb::run(db, op, n).await,
         OrmKind::Sqlx => sqlx_backend::run(db, op, n).await,
         OrmKind::Seaorm => seaorm::run(db, op, n).await,
+        #[cfg(feature = "diesel")]
         OrmKind::Diesel => diesel::run(db, op, n).await,
         OrmKind::Welds => welds::run(db, op, n).await,
         OrmKind::Rbatis => rbatis::run(db, op, n).await,

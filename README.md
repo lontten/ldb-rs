@@ -58,6 +58,8 @@ cargo test --all
 cargo doc --no-deps
 ```
 
+完整基准含 Diesel 时：`cargo bench -p ldb-bench --bench crud_compare --features diesel`（需系统 libmysqlclient；Linux 可装 `libmysqlclient-dev`）。
+
 ## 文档
 
 | 文档 | 说明 |

@@ -30,6 +30,7 @@ alwaysApply: true
 
 - 按 todos 顺序执行，标记 in_progress → completed
 - 不扩大范围；遵守计划中的「不改动的部分」
+- 改动体积遵循 `general-common.mdc`「改动精简」：功能与可读优先，避免多余说明与无关 wording 变更
 - Rust 改动按 `rust-verify`：`cargo fmt`、`cargo test`
 
 ## 计划文档
