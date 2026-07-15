@@ -16,11 +16,7 @@ impl Dialect for MysqlDialect {
         format!("`{identifier}`")
     }
 
-    fn rewrite_exec(&self, query: &str, arg_list: &[String]) -> (String, Vec<String>) {
-        (query.to_string(), arg_list.to_vec())
-    }
-
-    fn rewrite_query(&self, query: &str, arg_list: &[String]) -> (String, Vec<String>) {
+    fn rewrite_sql(&self, query: &str, arg_list: &[String]) -> (String, Vec<String>) {
         (query.to_string(), arg_list.to_vec())
     }
 
@@ -49,7 +45,7 @@ mod tests {
     #[test]
     fn rewrite_keeps_question_marks() {
         let d = MysqlDialect;
-        let (sql, args) = d.rewrite_exec("SELECT * FROM t WHERE id = ?", &["1".into()]);
+        let (sql, args) = d.rewrite_sql("SELECT * FROM t WHERE id = ?", &["1".into()]);
         assert_eq!(sql, "SELECT * FROM t WHERE id = ?");
         assert_eq!(args, vec!["1"]);
     }

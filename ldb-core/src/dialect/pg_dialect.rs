@@ -16,11 +16,7 @@ impl Dialect for PgDialect {
         format!("\"{identifier}\"")
     }
 
-    fn rewrite_exec(&self, query: &str, arg_list: &[String]) -> (String, Vec<String>) {
-        rewrite_placeholders(query, arg_list)
-    }
-
-    fn rewrite_query(&self, query: &str, arg_list: &[String]) -> (String, Vec<String>) {
+    fn rewrite_sql(&self, query: &str, arg_list: &[String]) -> (String, Vec<String>) {
         rewrite_placeholders(query, arg_list)
     }
 
@@ -77,7 +73,7 @@ mod tests {
     #[test]
     fn rewrite_numbered_placeholders() {
         let d = PgDialect;
-        let (sql, args) = d.rewrite_query(
+        let (sql, args) = d.rewrite_sql(
             "SELECT * FROM t WHERE id = ? AND name = ?",
             &["1".into(), "tom".into()],
         );

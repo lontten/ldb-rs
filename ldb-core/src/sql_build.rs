@@ -203,11 +203,7 @@ pub fn dialect_exec_sql(
     for_query: bool,
 ) -> (String, Vec<String>) {
     let arg_strings = sql_values_to_string_list(&built.arg_list);
-    if for_query {
-        dialect.rewrite_query(&built.sql, &arg_strings)
-    } else {
-        dialect.rewrite_exec(&built.sql, &arg_strings)
-    }
+    dialect.rewrite_sql(&built.sql, &arg_strings)
 }
 
 #[cfg(test)]

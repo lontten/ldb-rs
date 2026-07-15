@@ -11,10 +11,7 @@ pub trait Dialect: Send + Sync {
     fn escape_identifier(&self, identifier: &str) -> String;
 
     /// 将逻辑 SQL 与参数转换为方言可执行形式。
-    fn rewrite_exec(&self, query: &str, arg_list: &[String]) -> (String, Vec<String>);
-
-    /// 将逻辑查询 SQL 与参数转换为方言可执行形式。
-    fn rewrite_query(&self, query: &str, arg_list: &[String]) -> (String, Vec<String>);
+    fn rewrite_sql(&self, query: &str, arg_list: &[String]) -> (String, Vec<String>);
 
     /// 生成 upsert 子句（MySQL `ON DUPLICATE KEY` / PG `ON CONFLICT`）。
     fn upsert_clause(&self, table: &str, conflict_column_list: &[&str])
