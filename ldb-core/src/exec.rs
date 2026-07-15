@@ -7,11 +7,11 @@ use sqlx::postgres::PgPoolOptions;
 use sqlx::{MySql, Pool, Postgres};
 
 use crate::config::{MysqlConfig, PgConfig, PoolConfig};
-use crate::dialect::Dialect;
+use crate::dialect::dialect::Dialect;
 use crate::error::LdbError;
 use crate::model::{LdbModel, hydrate_model};
-use crate::mysql_dialect::MysqlDialect;
-use crate::pg_dialect::PgDialect;
+use crate::dialect::mysql_dialect::MysqlDialect;
+use crate::dialect::pg_dialect::PgDialect;
 use crate::sql_build::BuiltSql;
 use crate::sql_value::SqlValue;
 

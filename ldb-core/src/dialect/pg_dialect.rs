@@ -1,6 +1,6 @@
 //! PostgreSQL 方言实现。
 
-use crate::dialect::{Dialect, PlaceholderStyle};
+use crate::dialect::dialect::{Dialect, PlaceholderStyle};
 use crate::error::LdbError;
 
 /// PostgreSQL 方言。

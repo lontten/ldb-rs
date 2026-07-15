@@ -5,8 +5,8 @@ use std::sync::Arc;
 use crate::config::{MysqlConfig, PgConfig, PoolConfig};
 use crate::error::LdbError;
 use crate::exec::{MysqlEngine, PgEngine, open_mysql_pool, open_pg_pool};
-use crate::mysql_dialect::MysqlDialect;
-use crate::pg_dialect::PgDialect;
+use crate::dialect::mysql_dialect::MysqlDialect;
+use crate::dialect::pg_dialect::PgDialect;
 
 /// 建立 MySQL 连接池。
 pub async fn connect_mysql(

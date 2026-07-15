@@ -1,6 +1,7 @@
 //! SQL 生成（纯逻辑，便于单元测试）。
 
-use crate::dialect::Dialect;
+use crate::PlaceholderStyle;
+use crate::dialect::dialect::Dialect;
 use crate::error::LdbError;
 use crate::model::LdbModel;
 use crate::on_conflict::OnConflict;
@@ -61,7 +62,7 @@ fn render_on_conflict(
 ) -> Result<String, LdbError> {
     match conflict {
         OnConflict::DoNothing => {
-            if dialect.placeholder_style() == crate::dialect::PlaceholderStyle::DollarNumbered {
+            if dialect.placeholder_style() == PlaceholderStyle::DollarNumbered {
                 Ok("ON CONFLICT DO NOTHING".to_string())
             } else {
                 Ok("ON DUPLICATE KEY UPDATE id = id".to_string())
@@ -212,7 +213,7 @@ pub fn dialect_exec_sql(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mysql_dialect::MysqlDialect;
+    use crate::dialect::mysql_dialect::MysqlDialect;
     use crate::test_util::TestUser;
     use crate::where_builder::w;
 
@@ -271,7 +272,7 @@ mod tests {
             "t_user",
             &user,
             Some(&OnConflict::DoNothing),
-            &crate::pg_dialect::PgDialect,
+            &crate::dialect::pg_dialect::PgDialect,
         )
         .unwrap();
         assert!(built.sql.contains("ON CONFLICT DO NOTHING"));
@@ -290,7 +291,7 @@ mod tests {
             sql: "SELECT * FROM t WHERE id = ?".into(),
             arg_list: vec![SqlValue::I64(1)],
         };
-        let (sql, _) = dialect_exec_sql(&crate::pg_dialect::PgDialect, &built, true);
+        let (sql, _) = dialect_exec_sql(&crate::dialect::pg_dialect::PgDialect, &built, true);
         assert!(sql.contains("$1"));
     }
 

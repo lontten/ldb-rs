@@ -13,8 +13,8 @@ pub struct InsertResult {
 
 /// 可执行 SQL 的数据库引擎（连接池或事务）。
 pub trait Engine: SqlExecutor + Send + Sync {
-    fn ping(&self) -> impl std::future::Future<Output = Result<(), LdbError>> + Send;
-    fn begin(&self) -> impl std::future::Future<Output = Result<Transaction, LdbError>> + Send;
+    fn ping(&self) -> impl Future<Output = Result<(), LdbError>> + Send;
+    fn begin(&self) -> impl Future<Output = Result<Transaction, LdbError>> + Send;
 }
 
 impl Engine for MysqlEngine {
@@ -91,14 +91,16 @@ impl SqlExecutor for Transaction {
         }
     }
 
-    fn dialect(&self) -> &dyn crate::dialect::Dialect {
+    fn dialect(&self) -> &dyn crate::dialect::dialect::Dialect {
         match self {
             Transaction::Mysql(_) => {
-                static D: crate::mysql_dialect::MysqlDialect = crate::mysql_dialect::MysqlDialect;
+                static D: crate::dialect::mysql_dialect::MysqlDialect =
+                    crate::dialect::mysql_dialect::MysqlDialect;
                 &D
             }
             Transaction::Pg(_) => {
-                static D: crate::pg_dialect::PgDialect = crate::pg_dialect::PgDialect;
+                static D: crate::dialect::pg_dialect::PgDialect =
+                    crate::dialect::pg_dialect::PgDialect;
                 &D
             }
         }
