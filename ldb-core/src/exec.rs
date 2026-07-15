@@ -8,10 +8,10 @@ use sqlx::{MySql, Pool, Postgres};
 
 use crate::config::{MysqlConfig, PgConfig, PoolConfig};
 use crate::dialect::dialect::Dialect;
-use crate::error::LdbError;
-use crate::model::{LdbModel, hydrate_model};
 use crate::dialect::mysql_dialect::MysqlDialect;
 use crate::dialect::pg_dialect::PgDialect;
+use crate::error::LdbError;
+use crate::model::{LdbModel, hydrate_model};
 use crate::sql_build::BuiltSql;
 use crate::sql_value::SqlValue;
 

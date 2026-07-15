@@ -25,9 +25,9 @@ pub use connect::{connect_mysql, connect_pg};
 #[cfg(any(feature = "integration", test))]
 pub use connect::{connect_mysql_url, connect_pg_url};
 pub use crud::{
-    count, delete, first, get_or_insert, has, insert,
-    list, update, update_by_primary_key, CountBuilder, DeleteBuilder, FirstBuilder, GetOrInsertBuilder, HasBuilder,
-    InsertBuilder, ListBuilder, UpdateBuilder, UpdateByPkBuilder,
+    CountBuilder, DeleteBuilder, FirstBuilder, GetOrInsertBuilder, HasBuilder, InsertBuilder,
+    ListBuilder, UpdateBuilder, UpdateByPkBuilder, count, delete, first, get_or_insert, has,
+    insert, list, update, update_by_primary_key,
 };
 pub use dialect::dialect::{Dialect, PlaceholderStyle};
 pub use engine::{Engine, InsertResult, Transaction};
@@ -38,4 +38,4 @@ pub use model::{ColumnMeta, LdbModel, TableConf};
 pub use on_conflict::OnConflict;
 pub use order::{Order, OrderBy};
 pub use sql_value::{IntoSqlValue, SqlValue};
-pub use where_builder::{w, WhereBuilder};
+pub use where_builder::{WhereBuilder, w};
