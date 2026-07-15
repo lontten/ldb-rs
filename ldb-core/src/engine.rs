@@ -109,7 +109,7 @@ impl SqlExecutor for Transaction {
     async fn execute_built(&self, built: &crate::sql_build::BuiltSql) -> Result<u64, LdbError> {
         match self {
             Transaction::Mysql(tx) => {
-                let (sql, _) = crate::sql_build::dialect_exec_sql(self.dialect(), built, false);
+                let sql = crate::sql_build::dialect_exec_sql(self.dialect(), built);
                 let mut q = sqlx::query(&sql);
                 for v in &built.arg_list {
                     q = crate::exec::bind_mysql(q, v);
@@ -118,7 +118,7 @@ impl SqlExecutor for Transaction {
                 Ok(q.execute(&mut **guard).await?.rows_affected())
             }
             Transaction::Pg(tx) => {
-                let (sql, _) = crate::sql_build::dialect_exec_sql(self.dialect(), built, false);
+                let sql = crate::sql_build::dialect_exec_sql(self.dialect(), built);
                 let mut q = sqlx::query(&sql);
                 for v in &built.arg_list {
                     q = crate::exec::bind_pg(q, v);
@@ -132,7 +132,7 @@ impl SqlExecutor for Transaction {
     async fn query_rows(&self, built: &crate::sql_build::BuiltSql) -> Result<u64, LdbError> {
         match self {
             Transaction::Mysql(tx) => {
-                let (sql, _) = crate::sql_build::dialect_exec_sql(self.dialect(), built, true);
+                let sql = crate::sql_build::dialect_exec_sql(self.dialect(), built);
                 let mut q = sqlx::query(&sql);
                 for v in &built.arg_list {
                     q = crate::exec::bind_mysql(q, v);
@@ -141,7 +141,7 @@ impl SqlExecutor for Transaction {
                 Ok(q.fetch_all(&mut **guard).await?.len() as u64)
             }
             Transaction::Pg(tx) => {
-                let (sql, _) = crate::sql_build::dialect_exec_sql(self.dialect(), built, true);
+                let sql = crate::sql_build::dialect_exec_sql(self.dialect(), built);
                 let mut q = sqlx::query(&sql);
                 for v in &built.arg_list {
                     q = crate::exec::bind_pg(q, v);
@@ -158,7 +158,7 @@ impl SqlExecutor for Transaction {
     ) -> Result<Vec<T>, LdbError> {
         match self {
             Transaction::Mysql(tx) => {
-                let (sql, _) = crate::sql_build::dialect_exec_sql(self.dialect(), built, true);
+                let sql = crate::sql_build::dialect_exec_sql(self.dialect(), built);
                 let mut q = sqlx::query(&sql);
                 for v in &built.arg_list {
                     q = crate::exec::bind_mysql(q, v);
@@ -185,7 +185,7 @@ impl SqlExecutor for Transaction {
             }
             Transaction::Pg(tx) => {
                 let mut guard = tx.lock().await;
-                let (sql, _) = crate::sql_build::dialect_exec_sql(self.dialect(), built, true);
+                let sql = crate::sql_build::dialect_exec_sql(self.dialect(), built);
                 let mut q = sqlx::query(&sql);
                 for v in &built.arg_list {
                     q = crate::exec::bind_pg(q, v);
@@ -214,7 +214,7 @@ impl SqlExecutor for Transaction {
     async fn query_scalar_u64(&self, built: &crate::sql_build::BuiltSql) -> Result<u64, LdbError> {
         match self {
             Transaction::Mysql(tx) => {
-                let (sql, _) = crate::sql_build::dialect_exec_sql(self.dialect(), built, true);
+                let sql = crate::sql_build::dialect_exec_sql(self.dialect(), built);
                 let mut q = sqlx::query(&sql);
                 for v in &built.arg_list {
                     q = crate::exec::bind_mysql(q, v);
@@ -224,7 +224,7 @@ impl SqlExecutor for Transaction {
                 crate::exec::mysql_row_first_u64(&row)
             }
             Transaction::Pg(tx) => {
-                let (sql, _) = crate::sql_build::dialect_exec_sql(self.dialect(), built, true);
+                let sql = crate::sql_build::dialect_exec_sql(self.dialect(), built);
                 let mut q = sqlx::query(&sql);
                 for v in &built.arg_list {
                     q = crate::exec::bind_pg(q, v);
@@ -239,7 +239,7 @@ impl SqlExecutor for Transaction {
     async fn query_exists(&self, built: &crate::sql_build::BuiltSql) -> Result<bool, LdbError> {
         match self {
             Transaction::Mysql(tx) => {
-                let (sql, _) = crate::sql_build::dialect_exec_sql(self.dialect(), built, true);
+                let sql = crate::sql_build::dialect_exec_sql(self.dialect(), built);
                 let mut q = sqlx::query(&sql);
                 for v in &built.arg_list {
                     q = crate::exec::bind_mysql(q, v);
@@ -248,7 +248,7 @@ impl SqlExecutor for Transaction {
                 Ok(q.fetch_optional(&mut **guard).await?.is_some())
             }
             Transaction::Pg(tx) => {
-                let (sql, _) = crate::sql_build::dialect_exec_sql(self.dialect(), built, true);
+                let sql = crate::sql_build::dialect_exec_sql(self.dialect(), built);
                 let mut q = sqlx::query(&sql);
                 for v in &built.arg_list {
                     q = crate::exec::bind_pg(q, v);

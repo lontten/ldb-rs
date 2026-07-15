@@ -1,5 +1,7 @@
 //! PostgreSQL 方言实现。
 
+use std::borrow::Cow;
+
 use crate::dialect::dialect::{Dialect, PlaceholderStyle};
 use crate::error::LdbError;
 
@@ -16,8 +18,8 @@ impl Dialect for PgDialect {
         format!("\"{identifier}\"")
     }
 
-    fn rewrite_sql(&self, query: &str, arg_list: &[String]) -> (String, Vec<String>) {
-        rewrite_placeholders(query, arg_list)
+    fn rewrite_sql<'a>(&self, query: &'a str) -> Cow<'a, str> {
+        Cow::Owned(rewrite_placeholders(query))
     }
 
     fn upsert_clause(
@@ -42,22 +44,20 @@ impl Dialect for PgDialect {
     }
 }
 
-fn rewrite_placeholders(query: &str, arg_list: &[String]) -> (String, Vec<String>) {
-    let mut out = String::with_capacity(query.len());
-    let mut index = 0usize;
+fn rewrite_placeholders(query: &str) -> String {
+    let placeholder_count = query.as_bytes().iter().filter(|&&b| b == b'?').count();
+    let mut out = String::with_capacity(query.len() + placeholder_count * 2);
     let mut arg_index = 1usize;
-    for ch in query.chars() {
-        if ch == '?' {
-            let _ = index;
-            index += 1;
+    for &byte in query.as_bytes() {
+        if byte == b'?' {
             out.push('$');
             out.push_str(&arg_index.to_string());
             arg_index += 1;
         } else {
-            out.push(ch);
+            out.push(byte as char);
         }
     }
-    (out, arg_list.to_vec())
+    out
 }
 
 #[cfg(test)]
@@ -73,12 +73,8 @@ mod tests {
     #[test]
     fn rewrite_numbered_placeholders() {
         let d = PgDialect;
-        let (sql, args) = d.rewrite_sql(
-            "SELECT * FROM t WHERE id = ? AND name = ?",
-            &["1".into(), "tom".into()],
-        );
+        let sql = d.rewrite_sql("SELECT * FROM t WHERE id = ? AND name = ?");
         assert_eq!(sql, "SELECT * FROM t WHERE id = $1 AND name = $2");
-        assert_eq!(args.len(), 2);
     }
 
     #[test]

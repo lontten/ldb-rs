@@ -127,11 +127,6 @@ impl<T: IntoSqlValue> IntoSqlValue for Option<T> {
     }
 }
 
-/// 将 `SqlValue` 列表转为字符串列表（方言改写用）。
-pub fn sql_values_to_string_list(values: &[SqlValue]) -> Vec<String> {
-    values.iter().map(sql_value_to_string).collect()
-}
-
 pub fn sql_value_to_string(value: &SqlValue) -> String {
     match value {
         SqlValue::Null => "NULL".to_string(),
@@ -177,9 +172,7 @@ mod tests {
         assert_eq!(SqlValue::I64(3).to_string(), "3");
         assert_eq!(SqlValue::String("a".into()).as_str(), Some("a"));
         assert_eq!(sql_value_to_string(&SqlValue::Bool(false)), "false");
-        assert_eq!(
-            sql_values_to_string_list(&[SqlValue::I64(1), SqlValue::Null]),
-            vec!["1", "NULL"]
-        );
+        assert_eq!(sql_value_to_string(&SqlValue::I64(1)), "1");
+        assert_eq!(sql_value_to_string(&SqlValue::Null), "NULL");
     }
 }

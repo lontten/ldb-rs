@@ -1,5 +1,7 @@
 //! MySQL 方言实现。
 
+use std::borrow::Cow;
+
 use crate::dialect::dialect::{Dialect, PlaceholderStyle};
 use crate::error::LdbError;
 
@@ -16,8 +18,8 @@ impl Dialect for MysqlDialect {
         format!("`{identifier}`")
     }
 
-    fn rewrite_sql(&self, query: &str, arg_list: &[String]) -> (String, Vec<String>) {
-        (query.to_string(), arg_list.to_vec())
+    fn rewrite_sql<'a>(&self, query: &'a str) -> Cow<'a, str> {
+        Cow::Borrowed(query)
     }
 
     fn upsert_clause(
@@ -45,9 +47,9 @@ mod tests {
     #[test]
     fn rewrite_keeps_question_marks() {
         let d = MysqlDialect;
-        let (sql, args) = d.rewrite_sql("SELECT * FROM t WHERE id = ?", &["1".into()]);
+        let sql = d.rewrite_sql("SELECT * FROM t WHERE id = ?");
+        assert!(matches!(sql, Cow::Borrowed(_)));
         assert_eq!(sql, "SELECT * FROM t WHERE id = ?");
-        assert_eq!(args, vec!["1"]);
     }
 
     #[test]

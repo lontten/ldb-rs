@@ -6,7 +6,7 @@ use crate::error::LdbError;
 use crate::model::LdbModel;
 use crate::on_conflict::OnConflict;
 use crate::order::{Order, OrderBy};
-use crate::sql_value::{SqlValue, sql_values_to_string_list};
+use crate::sql_value::SqlValue;
 use crate::where_builder::WhereBuilder;
 
 /// Insert SQL 构建结果。
@@ -196,14 +196,12 @@ pub fn build_select<M: LdbModel>(
     Ok(BuiltSql { sql, arg_list })
 }
 
-/// 将逻辑 SQL 按方言改写为可执行形式（字符串参数）。
-pub fn dialect_exec_sql(
+/// 将逻辑 SQL 按方言改写为可执行形式。
+pub fn dialect_exec_sql<'a>(
     dialect: &dyn Dialect,
-    built: &BuiltSql,
-    for_query: bool,
-) -> (String, Vec<String>) {
-    let arg_strings = sql_values_to_string_list(&built.arg_list);
-    dialect.rewrite_sql(&built.sql, &arg_strings)
+    built: &'a BuiltSql,
+) -> std::borrow::Cow<'a, str> {
+    dialect.rewrite_sql(&built.sql)
 }
 
 #[cfg(test)]
@@ -287,8 +285,8 @@ mod tests {
             sql: "SELECT * FROM t WHERE id = ?".into(),
             arg_list: vec![SqlValue::I64(1)],
         };
-        let (sql, _) = dialect_exec_sql(&crate::dialect::pg_dialect::PgDialect, &built, true);
-        assert!(sql.contains("$1"));
+        let sql = dialect_exec_sql(&crate::dialect::pg_dialect::PgDialect, &built);
+        assert_eq!(sql, "SELECT * FROM t WHERE id = $1");
     }
 
     #[test]

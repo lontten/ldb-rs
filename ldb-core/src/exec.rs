@@ -228,7 +228,7 @@ async fn mysql_fetch_models<T: LdbModel + Default>(
     built: &BuiltSql,
     dialect: &dyn Dialect,
 ) -> Result<Vec<T>, LdbError> {
-    let (sql, _) = crate::sql_build::dialect_exec_sql(dialect, built, true);
+    let sql = crate::sql_build::dialect_exec_sql(dialect, built);
     let mut q = sqlx::query(&sql);
     for v in &built.arg_list {
         q = bind_mysql(q, v);
@@ -251,7 +251,7 @@ async fn pg_fetch_models<T: LdbModel + Default>(
     built: &BuiltSql,
     dialect: &dyn Dialect,
 ) -> Result<Vec<T>, LdbError> {
-    let (sql, _) = crate::sql_build::dialect_exec_sql(dialect, built, true);
+    let sql = crate::sql_build::dialect_exec_sql(dialect, built);
     let mut q = sqlx::query(&sql);
     for v in &built.arg_list {
         q = bind_pg(q, v);
@@ -269,13 +269,13 @@ async fn pg_fetch_models<T: LdbModel + Default>(
     Ok(out)
 }
 
-// MySQL：`dialect_exec_sql(..., for_query: true)` 后 `fetch_one` 读取标量。
+// MySQL：`dialect_exec_sql` 后 `fetch_one` 读取标量。
 async fn mysql_query_scalar_u64(
     pool: &Pool<MySql>,
     built: &BuiltSql,
     dialect: &dyn Dialect,
 ) -> Result<u64, LdbError> {
-    let (sql, _) = crate::sql_build::dialect_exec_sql(dialect, built, true);
+    let sql = crate::sql_build::dialect_exec_sql(dialect, built);
     let mut q = sqlx::query(&sql);
     for v in &built.arg_list {
         q = bind_mysql(q, v);
@@ -284,13 +284,13 @@ async fn mysql_query_scalar_u64(
     mysql_row_first_u64(&row)
 }
 
-// MySQL：`dialect_exec_sql(..., for_query: true)` 后 `fetch_optional` 判断行是否存在。
+// MySQL：`dialect_exec_sql` 后 `fetch_optional` 判断行是否存在。
 async fn mysql_query_exists(
     pool: &Pool<MySql>,
     built: &BuiltSql,
     dialect: &dyn Dialect,
 ) -> Result<bool, LdbError> {
-    let (sql, _) = crate::sql_build::dialect_exec_sql(dialect, built, true);
+    let sql = crate::sql_build::dialect_exec_sql(dialect, built);
     let mut q = sqlx::query(&sql);
     for v in &built.arg_list {
         q = bind_mysql(q, v);
@@ -298,13 +298,13 @@ async fn mysql_query_exists(
     Ok(q.fetch_optional(pool).await?.is_some())
 }
 
-// PostgreSQL：`dialect_exec_sql(..., for_query: true)` 后 `fetch_one` 读取标量。
+// PostgreSQL：`dialect_exec_sql` 后 `fetch_one` 读取标量。
 async fn pg_query_scalar_u64(
     pool: &Pool<Postgres>,
     built: &BuiltSql,
     dialect: &dyn Dialect,
 ) -> Result<u64, LdbError> {
-    let (sql, _) = crate::sql_build::dialect_exec_sql(dialect, built, true);
+    let sql = crate::sql_build::dialect_exec_sql(dialect, built);
     let mut q = sqlx::query(&sql);
     for v in &built.arg_list {
         q = bind_pg(q, v);
@@ -313,13 +313,13 @@ async fn pg_query_scalar_u64(
     pg_row_first_u64(&row)
 }
 
-// PostgreSQL：`dialect_exec_sql(..., for_query: true)` 后 `fetch_optional` 判断行是否存在。
+// PostgreSQL：`dialect_exec_sql` 后 `fetch_optional` 判断行是否存在。
 async fn pg_query_exists(
     pool: &Pool<Postgres>,
     built: &BuiltSql,
     dialect: &dyn Dialect,
 ) -> Result<bool, LdbError> {
-    let (sql, _) = crate::sql_build::dialect_exec_sql(dialect, built, true);
+    let sql = crate::sql_build::dialect_exec_sql(dialect, built);
     let mut q = sqlx::query(&sql);
     for v in &built.arg_list {
         q = bind_pg(q, v);
@@ -337,7 +337,7 @@ impl SqlExecutor for MysqlEngine {
     }
 
     async fn execute_built(&self, built: &BuiltSql) -> Result<u64, LdbError> {
-        let (sql, _) = crate::sql_build::dialect_exec_sql(self.dialect(), built, false);
+        let sql = crate::sql_build::dialect_exec_sql(self.dialect(), built);
         let mut q = sqlx::query(&sql);
         for v in &built.arg_list {
             q = bind_mysql(q, v);
@@ -346,7 +346,7 @@ impl SqlExecutor for MysqlEngine {
     }
 
     async fn query_rows(&self, built: &BuiltSql) -> Result<u64, LdbError> {
-        let (sql, _) = crate::sql_build::dialect_exec_sql(self.dialect(), built, true);
+        let sql = crate::sql_build::dialect_exec_sql(self.dialect(), built);
         let mut q = sqlx::query(&sql);
         for v in &built.arg_list {
             q = bind_mysql(q, v);
@@ -380,7 +380,7 @@ impl SqlExecutor for PgEngine {
     }
 
     async fn execute_built(&self, built: &BuiltSql) -> Result<u64, LdbError> {
-        let (sql, _) = crate::sql_build::dialect_exec_sql(self.dialect(), built, false);
+        let sql = crate::sql_build::dialect_exec_sql(self.dialect(), built);
         let mut q = sqlx::query(&sql);
         for v in &built.arg_list {
             q = bind_pg(q, v);
@@ -389,7 +389,7 @@ impl SqlExecutor for PgEngine {
     }
 
     async fn query_rows(&self, built: &BuiltSql) -> Result<u64, LdbError> {
-        let (sql, _) = crate::sql_build::dialect_exec_sql(self.dialect(), built, true);
+        let sql = crate::sql_build::dialect_exec_sql(self.dialect(), built);
         let mut q = sqlx::query(&sql);
         for v in &built.arg_list {
             q = bind_pg(q, v);
