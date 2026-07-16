@@ -38,7 +38,7 @@ jobs:
             --ignore-filename-regex='ldb-core/src/(connect|engine|exec)\.rs'
           cargo llvm-cov report --summary-only \
             --ignore-filename-regex='ldb-core/src/(connect|engine|exec)\.rs'
-      - uses: codecov/codecov-action@v5
+      - uses: codecov/codecov-action@v6
         with:
           files: lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}
