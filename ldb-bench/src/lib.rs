@@ -125,15 +125,13 @@ pub fn run_bench(
     n: usize,
 ) -> Pin<Box<dyn Future<Output = ()> + Send>> {
     Box::pin(async move {
-        backends::run(db, orm, op, n)
-            .await
-            .unwrap_or_else(|e| {
-                panic!(
-                    "bench {}/{}/{}/{n}: {e}",
-                    db.label(),
-                    op.label(),
-                    orm.label()
-                )
-            });
+        backends::run(db, orm, op, n).await.unwrap_or_else(|e| {
+            panic!(
+                "bench {}/{}/{}/{n}: {e}",
+                db.label(),
+                op.label(),
+                orm.label()
+            )
+        });
     })
 }
