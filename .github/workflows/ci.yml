@@ -137,6 +137,8 @@ jobs:
       - name: Prepare Criterion Pages
         run: |
           test -f target/criterion/report/index.html
+          python3 ldb-bench/scripts/gen_overview.py target/criterion
+          test -f target/criterion/index.html
           touch target/criterion/.nojekyll
       - uses: actions/upload-artifact@v6
         with:

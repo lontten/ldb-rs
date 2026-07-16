@@ -15,7 +15,7 @@
 |------|------|
 | 测试 | CI 运行 `cargo test --all` 与 integration 测试 |
 | 覆盖率 | CI 生成覆盖率报告并上传 Codecov（`connect` / `engine` / `exec` 除外） |
-| 性能基准 | [Criterion 报告](https://lontten.github.io/ldb-rs/report/index.html)（main 分支每次推送更新） |
+| 性能基准 | [CRUD 对比总览](https://lontten.github.io/ldb-rs/)（main 推送更新；[Criterion 详情](https://lontten.github.io/ldb-rs/report/index.html)） |
 
 ## 技术栈
 

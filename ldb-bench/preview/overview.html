@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ldb CRUD 性能对比（预览）</title>
+  <style>
+    :root {
+      --bg: #f7f6f2;
+      --surface: #ffffff;
+      --text: #1c1917;
+      --muted: #57534e;
+      --border: #e7e5e4;
+      --accent: #0f766e;
+      --accent-soft: #ccfbf1;
+      --bar: #0d9488;
+      --bar-fast: #0f766e;
+      --badge-bg: #fef3c7;
+      --badge-text: #92400e;
+      --fast-row: #f0fdf4;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB",
+        "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    .wrap {
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 3rem;
+    }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.75rem 1.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    h1 {
+      margin: 0 0 0.35rem;
+      font-size: 1.65rem;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+    }
+
+    .tagline {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 0.3rem 0.65rem;
+      border-radius: 4px;
+      background: var(--badge-bg);
+      color: var(--badge-text);
+      font-size: 0.8rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .howto {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem 1.15rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .howto h2 {
+      margin: 0 0 0.5rem;
+      font-size: 0.95rem;
+      font-weight: 650;
+    }
+
+    .howto ol {
+      margin: 0;
+      padding-left: 1.2rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .howto li { margin: 0.25rem 0; }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .tabs {
+      display: inline-flex;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      background: var(--surface);
+    }
+
+    .tabs button {
+      border: 0;
+      background: transparent;
+      padding: 0.45rem 1rem;
+      font: inherit;
+      font-size: 0.9rem;
+      color: var(--muted);
+      cursor: pointer;
+    }
+
+    .tabs button[aria-selected="true"] {
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .tabs button:not([aria-selected="true"]):hover {
+      background: #f5f5f4;
+      color: var(--text);
+    }
+
+    .size-note {
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    .size-note strong { color: var(--text); }
+
+    .panel[hidden] { display: none; }
+
+    .op {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin-bottom: 1rem;
+      overflow: hidden;
+    }
+
+    .op-head {
+      padding: 0.7rem 1rem;
+      border-bottom: 1px solid var(--border);
+      font-weight: 650;
+      font-size: 0.95rem;
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+    }
+
+    .op-head .op-label {
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      color: var(--accent);
+    }
+
+    .op-head .op-desc {
+      font-weight: 400;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+
+    th, td {
+      padding: 0.55rem 1rem;
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    th {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      background: #fafaf9;
+    }
+
+    td { border-bottom: 1px solid var(--border); }
+
+    tr:last-child td { border-bottom: 0; }
+
+    tr.fastest {
+      background: var(--fast-row);
+    }
+
+    .orm {
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-weight: 600;
+    }
+
+    .ms {
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .rel {
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .rel.best {
+      color: var(--accent);
+      font-weight: 650;
+    }
+
+    .bar-cell { width: 42%; min-width: 120px; }
+
+    .bar-track {
+      height: 8px;
+      background: #e7e5e4;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      background: var(--bar);
+    }
+
+    tr.fastest .bar-fill { background: var(--bar-fast); }
+
+    footer {
+      margin-top: 2rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    footer a {
+      color: var(--accent);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    @media (max-width: 640px) {
+      th:nth-child(4), td:nth-child(4) { display: none; }
+      .bar-cell { width: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>ldb CRUD 性能对比</h1>
+        <p class="tagline">数字越小越快。同库、同操作、同数据规模下比较各 ORM。</p>
+      </div>
+      <span class="badge">预览 · 示例数据</span>
+    </header>
+
+    <section class="howto" aria-label="怎么读这张表">
+      <h2>怎么读</h2>
+      <ol>
+        <li>测的是一次完整 CRUD 迭代的耗时（毫秒）；本页为示意，不代表真实跑分。</li>
+        <li>数据规模固定为 <strong>n = 50</strong>（表中预先有 50 行相关数据时的操作成本）。</li>
+        <li>只在同一数据库、同一操作内横向比较；不要跨操作或跨库直接比绝对值。</li>
+      </ol>
+    </section>
+
+    <div class="toolbar">
+      <div class="tabs" role="tablist" aria-label="数据库">
+        <button type="button" role="tab" id="tab-mysql" aria-controls="panel-mysql" aria-selected="true">MySQL</button>
+        <button type="button" role="tab" id="tab-postgres" aria-controls="panel-postgres" aria-selected="false">PostgreSQL</button>
+      </div>
+      <p class="size-note">数据规模：<strong>n = 50</strong></p>
+    </div>
+
+    <div id="panel-mysql" class="panel" role="tabpanel" aria-labelledby="tab-mysql"></div>
+    <div id="panel-postgres" class="panel" role="tabpanel" aria-labelledby="tab-postgres" hidden></div>
+
+    <footer>
+      <p>本页为设计预览，数字为示例。定稿后将由 CI 从 Criterion 结果生成，并链接到
+        <a href="https://lontten.github.io/ldb-rs/report/index.html">详细统计（Criterion）</a>。</p>
+    </footer>
+  </div>
+
+  <script>
+    // 示例数据：毫秒；仅用于布局预览
+    const OPS = [
+      { id: "insert", title: "insert", desc: "插入 n 行" },
+      { id: "update", title: "update", desc: "按条件更新" },
+      { id: "delete", title: "delete", desc: "按条件删除" },
+      { id: "first",  title: "first",  desc: "取首行" },
+      { id: "list",   title: "list",   desc: "列表查询" },
+      { id: "count",  title: "count",  desc: "计数" },
+    ];
+
+    const DATA = {
+      mysql: {
+        insert: { sqlx: 12.1, ldb: 13.4, diesel: 14.8, ormlite: 16.2, welds: 17.5, seaorm: 18.2, rbatis: 21.0 },
+        update: { sqlx: 11.4, ldb: 12.0, diesel: 13.1, ormlite: 14.6, welds: 15.9, seaorm: 16.8, rbatis: 19.4 },
+        delete: { sqlx: 10.8, ldb: 11.5, diesel: 12.4, ormlite: 13.7, welds: 14.9, seaorm: 15.6, rbatis: 18.1 },
+        first:  { sqlx: 9.2,  ldb: 9.6,  diesel: 10.1, ormlite: 11.0, welds: 11.8, seaorm: 12.4, rbatis: 14.2 },
+        list:   { sqlx: 14.5, ldb: 15.1, diesel: 16.0, ormlite: 17.8, welds: 19.2, seaorm: 20.5, rbatis: 24.0 },
+        count:  { sqlx: 8.7,  ldb: 9.1,  diesel: 9.5,  ormlite: 10.2, welds: 10.9, seaorm: 11.4, rbatis: 13.0 },
+      },
+      postgres: {
+        insert: { sqlx: 11.2, ldb: 12.0, diesel: 13.5, ormlite: 14.9, welds: 16.1, seaorm: 17.0, rbatis: 19.8 },
+        update: { sqlx: 10.5, ldb: 11.1, diesel: 12.2, ormlite: 13.4, welds: 14.6, seaorm: 15.5, rbatis: 18.0 },
+        delete: { sqlx: 9.9,  ldb: 10.6, diesel: 11.5, ormlite: 12.6, welds: 13.7, seaorm: 14.4, rbatis: 16.8 },
+        first:  { sqlx: 8.4,  ldb: 8.9,  diesel: 9.4,  ormlite: 10.1, welds: 10.8, seaorm: 11.5, rbatis: 13.1 },
+        list:   { sqlx: 13.2, ldb: 13.9, diesel: 14.8, ormlite: 16.4, welds: 17.7, seaorm: 18.9, rbatis: 22.1 },
+        count:  { sqlx: 7.9,  ldb: 8.3,  diesel: 8.8,  ormlite: 9.4,  welds: 10.0, seaorm: 10.6, rbatis: 12.2 },
+      },
+    };
+
+    function fmtMs(v) {
+      return v.toFixed(1) + " ms";
+    }
+
+    function fmtRel(v, best) {
+      if (v === best) return { text: "最快", best: true };
+      const pct = ((v / best) - 1) * 100;
+      return { text: "+" + Math.round(pct) + "%", best: false };
+    }
+
+    function renderOp(op, rows) {
+      const values = Object.values(rows);
+      const best = Math.min(...values);
+      const worst = Math.max(...values);
+      const sorted = Object.entries(rows).sort((a, b) => a[1] - b[1]);
+
+      const body = sorted.map(([orm, ms]) => {
+        const rel = fmtRel(ms, best);
+        const width = worst > 0 ? (ms / worst) * 100 : 0;
+        const fastClass = ms === best ? " class=\"fastest\"" : "";
+        const relClass = rel.best ? "rel best" : "rel";
+        return (
+          "<tr" + fastClass + ">" +
+            "<td class=\"orm\">" + orm + "</td>" +
+            "<td class=\"ms\">" + fmtMs(ms) + "</td>" +
+            "<td class=\"" + relClass + "\">" + rel.text + "</td>" +
+            "<td class=\"bar-cell\"><div class=\"bar-track\"><div class=\"bar-fill\" style=\"width:" + width.toFixed(1) + "%\"></div></div></td>" +
+          "</tr>"
+        );
+      }).join("");
+
+      return (
+        "<section class=\"op\">" +
+          "<div class=\"op-head\">" +
+            "<span class=\"op-label\">" + op.title + "</span>" +
+            "<span class=\"op-desc\">" + op.desc + "</span>" +
+          "</div>" +
+          "<table>" +
+            "<thead><tr>" +
+              "<th>ORM</th><th>耗时</th><th>相对最快</th><th>示意</th>" +
+            "</tr></thead>" +
+            "<tbody>" + body + "</tbody>" +
+          "</table>" +
+        "</section>"
+      );
+    }
+
+    function renderDb(dbKey) {
+      const db = DATA[dbKey];
+      return OPS.map((op) => renderOp(op, db[op.id])).join("");
+    }
+
+    const panelMysql = document.getElementById("panel-mysql");
+    const panelPg = document.getElementById("panel-postgres");
+    panelMysql.innerHTML = renderDb("mysql");
+    panelPg.innerHTML = renderDb("postgres");
+
+    const tabMysql = document.getElementById("tab-mysql");
+    const tabPg = document.getElementById("tab-postgres");
+
+    function selectTab(which) {
+      const isMysql = which === "mysql";
+      tabMysql.setAttribute("aria-selected", isMysql ? "true" : "false");
+      tabPg.setAttribute("aria-selected", isMysql ? "false" : "true");
+      panelMysql.hidden = !isMysql;
+      panelPg.hidden = isMysql;
+    }
+
+    tabMysql.addEventListener("click", () => selectTab("mysql"));
+    tabPg.addEventListener("click", () => selectTab("postgres"));
+  </script>
+</body>
+</html>
