@@ -220,6 +220,9 @@ pub(crate) fn mysql_read_column(
     if let Ok(v) = row.try_get::<Option<i32>, _>(column) {
         return Ok(v.map(|n| SqlValue::I64(n as i64)).unwrap_or(SqlValue::Null));
     }
+    if let Ok(v) = row.try_get::<Option<i16>, _>(column) {
+        return Ok(v.map(|n| SqlValue::I64(n as i64)).unwrap_or(SqlValue::Null));
+    }
     if let Ok(v) = row.try_get::<Option<String>, _>(column) {
         return Ok(v.map(SqlValue::String).unwrap_or(SqlValue::Null));
     }
@@ -250,6 +253,9 @@ pub(crate) fn pg_read_column(
         return Ok(v.map(SqlValue::I64).unwrap_or(SqlValue::Null));
     }
     if let Ok(v) = row.try_get::<Option<i32>, _>(column) {
+        return Ok(v.map(|n| SqlValue::I64(n as i64)).unwrap_or(SqlValue::Null));
+    }
+    if let Ok(v) = row.try_get::<Option<i16>, _>(column) {
         return Ok(v.map(|n| SqlValue::I64(n as i64)).unwrap_or(SqlValue::Null));
     }
     if let Ok(v) = row.try_get::<Option<String>, _>(column) {
