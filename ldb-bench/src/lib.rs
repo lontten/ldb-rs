@@ -1,12 +1,21 @@
-//! 多 ORM CRUD 基准公共类型与调度。
+//! 多 ORM 真实业务场景基准公共类型与调度。
 
 pub mod backends;
 pub mod ddl;
+pub mod filter_sql;
+pub mod model;
+pub mod scenario;
 #[cfg(feature = "diesel")]
 pub mod schema_diesel;
+pub mod setup;
 
 use std::future::Future;
 use std::pin::Pin;
+
+pub use scenario::{
+    FILTER, GET_OR_INSERT_NAME, PAGE, PATCH_AGE, PATCH_CITY, SEED_N, UPSERT_NAME, delete_id_list,
+    seed_row,
+};
 
 /// 数据库方言。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -35,35 +44,35 @@ impl DbKind {
     }
 }
 
-/// CRUD 操作。
+/// 真实业务场景。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CrudOp {
-    Insert,
-    Update,
-    Delete,
-    First,
-    List,
-    Count,
+pub enum Scenario {
+    FilterPage,
+    PageWithTotal,
+    PartialUpdate,
+    Upsert,
+    DeleteByIds,
+    GetOrInsert,
 }
 
-impl CrudOp {
+impl Scenario {
     pub const ALL: [Self; 6] = [
-        Self::Insert,
-        Self::Update,
-        Self::Delete,
-        Self::First,
-        Self::List,
-        Self::Count,
+        Self::FilterPage,
+        Self::PageWithTotal,
+        Self::PartialUpdate,
+        Self::Upsert,
+        Self::DeleteByIds,
+        Self::GetOrInsert,
     ];
 
     pub fn label(self) -> &'static str {
         match self {
-            Self::Insert => "insert",
-            Self::Update => "update",
-            Self::Delete => "delete",
-            Self::First => "first",
-            Self::List => "list",
-            Self::Count => "count",
+            Self::FilterPage => "filter_page",
+            Self::PageWithTotal => "page_with_total",
+            Self::PartialUpdate => "partial_update",
+            Self::Upsert => "upsert",
+            Self::DeleteByIds => "delete_by_ids",
+            Self::GetOrInsert => "get_or_insert",
         }
     }
 }
@@ -117,19 +126,18 @@ impl OrmKind {
     }
 }
 
-/// 执行单次基准迭代。
+/// 执行单次基准迭代（热路径不含建表/全量 seed）。
 pub fn run_bench(
     db: DbKind,
     orm: OrmKind,
-    op: CrudOp,
-    n: usize,
+    scenario: Scenario,
 ) -> Pin<Box<dyn Future<Output = ()> + Send>> {
     Box::pin(async move {
-        backends::run(db, orm, op, n).await.unwrap_or_else(|e| {
+        backends::run(db, orm, scenario).await.unwrap_or_else(|e| {
             panic!(
-                "bench {}/{}/{}/{n}: {e}",
+                "bench {}/{}/{}: {e}",
                 db.label(),
-                op.label(),
+                scenario.label(),
                 orm.label()
             )
         });

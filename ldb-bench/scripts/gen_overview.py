@@ -9,14 +9,21 @@ from collections import defaultdict
 from pathlib import Path
 
 KNOWN_DBS = ("mysql", "postgres")
-KNOWN_OPS = ("insert", "update", "delete", "first", "list", "count")
+KNOWN_OPS = (
+    "filter_page",
+    "page_with_total",
+    "partial_update",
+    "upsert",
+    "delete_by_ids",
+    "get_or_insert",
+)
 OP_DESC = {
-    "insert": "插入 n 行",
-    "update": "按条件更新",
-    "delete": "按条件删除",
-    "first": "取首行",
-    "list": "列表查询",
-    "count": "计数",
+    "filter_page": "可选条件 + 排序分页",
+    "page_with_total": "同条件 COUNT + 分页 LIST",
+    "partial_update": "部分字段更新",
+    "upsert": "唯一键冲突则更新",
+    "delete_by_ids": "IN 批量删除",
+    "get_or_insert": "不存在则插入",
 }
 SKIP_DIRS = {"report", "base", "change", "new"}
 
@@ -306,8 +313,9 @@ def read_mean_ms(estimates_path: Path) -> float | None:
 
 
 def collect(criterion_root: Path) -> dict:
-    """DATA[db][n_str][op][orm] = ms"""
+    """DATA[db][n_str][op][orm] = ms；n_str 固定为种子规模标记。"""
     data: dict = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
+    seed_key = "500"
 
     if not criterion_root.is_dir():
         return {}
@@ -324,6 +332,14 @@ def collect(criterion_root: Path) -> dict:
             if not orm_dir.is_dir() or orm_dir.name in SKIP_DIRS:
                 continue
             orm = orm_dir.name
+            # scenario_compare：BenchmarkId 仅为 orm 名 → orm/new/estimates.json
+            estimates = orm_dir / "new" / "estimates.json"
+            if estimates.is_file():
+                ms = read_mean_ms(estimates)
+                if ms is not None:
+                    data[db][seed_key][op][orm] = round(ms, 3)
+                continue
+            # 兼容旧版 orm/n/new/estimates.json
             for n_dir in sorted(orm_dir.iterdir()):
                 if not n_dir.is_dir() or not n_dir.name.isdigit():
                     continue
@@ -335,7 +351,6 @@ def collect(criterion_root: Path) -> dict:
                     continue
                 data[db][n_dir.name][op][orm] = round(ms, 3)
 
-    # 转为普通 dict 便于 JSON
     out: dict = {}
     for db, sizes in data.items():
         out[db] = {}
@@ -355,9 +370,9 @@ def render_html(data: dict) -> str:
     sizes: set[str] = set()
     for db in dbs:
         sizes.update(data[db].keys())
-    size_list = sorted(sizes, key=lambda s: int(s))
+    size_list = sorted(sizes, key=lambda s: int(s) if s.isdigit() else 0)
     default_db = dbs[0] if dbs else "mysql"
-    default_n = "50" if "50" in sizes else (size_list[-1] if size_list else "50")
+    default_n = "500" if "500" in sizes else (size_list[-1] if size_list else "500")
 
     db_buttons = []
     for i, db in enumerate(KNOWN_DBS):
@@ -369,20 +384,29 @@ def render_html(data: dict) -> str:
             f'aria-selected="{selected}"{disabled}>{label}</button>'
         )
 
-    n_buttons = []
-    for n in size_list or ["10", "50"]:
-        selected = "true" if n == default_n else "false"
-        n_buttons.append(
-            f'<button type="button" role="tab" data-n="{n}" '
-            f'aria-selected="{selected}">n = {n}</button>'
-        )
+    n_toolbar = ""
+    if len(size_list) > 1:
+        n_buttons = []
+        for n in size_list:
+            selected = "true" if n == default_n else "false"
+            n_buttons.append(
+                f'<button type="button" role="tab" data-n="{n}" '
+                f'aria-selected="{selected}">seed = {n}</button>'
+            )
+        n_toolbar = f"""
+      <div class="toolbar-group">
+        <span class="toolbar-label">种子规模</span>
+        <div class="tabs" role="tablist" aria-label="种子规模" id="n-tabs">
+          {"".join(n_buttons)}
+        </div>
+      </div>"""
 
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ldb CRUD 性能对比</title>
+  <title>ldb 业务场景性能对比</title>
   <style>{CSS}
   </style>
 </head>
@@ -390,8 +414,8 @@ def render_html(data: dict) -> str:
   <div class="wrap">
     <header>
       <div>
-        <h1>ldb CRUD 性能对比</h1>
-        <p class="tagline">数字越小越快。同库、同操作、同数据规模下比较各 ORM。</p>
+        <h1>ldb 业务场景性能对比</h1>
+        <p class="tagline">数字越小越快。同库、同场景下比较各 ORM（sqlx 为手写动态 SQL 基线）。</p>
       </div>
       <span class="badge">CI 生成</span>
     </header>
@@ -399,9 +423,9 @@ def render_html(data: dict) -> str:
     <section class="howto" aria-label="怎么读这张表">
       <h2>怎么读</h2>
       <ol>
-        <li>测的是一次完整 CRUD 迭代的平均耗时（毫秒），含建连与表重置/灌数准备。</li>
-        <li>用上方切换数据库与数据规模 <strong>n</strong>（表中相关行数）。</li>
-        <li>只在同一数据库、同一操作、同一 n 内横向比较；不要跨操作或跨库直接比绝对值。</li>
+        <li>场景含动态可选条件分页、带 total 分页、部分更新、upsert、按 id 批量删、get_or_insert。</li>
+        <li>测的是热路径平均耗时（毫秒）；表结构与种子在测量外准备，迭代内不再全量灌数。</li>
+        <li>只在同一数据库、同一场景内横向比较；不要跨场景或跨库直接比绝对值。</li>
       </ol>
     </section>
 
@@ -411,13 +435,7 @@ def render_html(data: dict) -> str:
         <div class="tabs" role="tablist" aria-label="数据库" id="db-tabs">
           {"".join(db_buttons)}
         </div>
-      </div>
-      <div class="toolbar-group">
-        <span class="toolbar-label">数据规模</span>
-        <div class="tabs" role="tablist" aria-label="数据规模" id="n-tabs">
-          {"".join(n_buttons)}
-        </div>
-      </div>
+      </div>{n_toolbar}
     </div>
 
     <div id="content"></div>
@@ -540,6 +558,7 @@ def main(argv: list[str]) -> int:
         print(f"警告: 在 {root} 未找到可用的 estimates.json", file=sys.stderr)
 
     out = root / "index.html"
+    root.mkdir(parents=True, exist_ok=True)
     out.write_text(render_html(data), encoding="utf-8")
     n_pairs = sum(len(sizes) for sizes in data.values())
     print(f"wrote {out} ({n_pairs} db×n 组)")

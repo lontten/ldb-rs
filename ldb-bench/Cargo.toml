@@ -1,6 +1,6 @@
 [package]
 name = "ldb-bench"
-description = "ldb 与常用 Rust ORM 的 CRUD 性能基准"
+description = "ldb 与常用 Rust ORM 的业务场景性能基准"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -20,6 +20,7 @@ ldb-core = { workspace = true, features = ["integration", "test-util", "mysql", 
 tokio = { workspace = true }
 sqlx = { workspace = true }
 serde = { workspace = true }
+chrono = { workspace = true }
 
 sea-orm = { version = "~1.1", features = [
     "sqlx-mysql",
@@ -28,7 +29,7 @@ sea-orm = { version = "~1.1", features = [
     "macros",
 ] }
 
-diesel = { version = "2.2", features = ["mysql", "postgres"], optional = true }
+diesel = { version = "2.2", features = ["mysql", "postgres", "chrono"], optional = true }
 diesel-async = { version = "0.5", features = ["mysql", "postgres", "deadpool"], optional = true }
 
 welds = { version = "0.5", features = ["mysql", "postgres"] }
@@ -56,5 +57,5 @@ criterion = { version = "0.5", features = ["async_tokio", "html_reports"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [[bench]]
-name = "crud_compare"
+name = "scenario_compare"
 harness = false

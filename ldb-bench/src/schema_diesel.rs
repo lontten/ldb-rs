@@ -3,7 +3,10 @@
 diesel::table! {
     t_user (id) {
         id -> BigInt,
-        name -> Nullable<Varchar>,
-        age -> Nullable<Integer>,
+        name -> Varchar,
+        age -> Integer,
+        status -> SmallInt,
+        city -> Nullable<Varchar>,
+        created_at -> Timestamp,
     }
 }

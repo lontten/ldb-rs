@@ -15,7 +15,7 @@
 |------|------|
 | 测试 | CI 运行 `cargo test --all` 与 integration 测试 |
 | 覆盖率 | CI 生成覆盖率报告并上传 Codecov（`connect` / `engine` / `exec` 除外） |
-| 性能基准 | [CRUD 对比总览](https://lontten.github.io/ldb-rs/)（main 推送更新；[Criterion 详情](https://lontten.github.io/ldb-rs/report/index.html)） |
+| 性能基准 | [业务场景对比总览](https://lontten.github.io/ldb-rs/)（main 推送更新；[Criterion 详情](https://lontten.github.io/ldb-rs/report/index.html)） |
 
 ## 技术栈
 
@@ -36,7 +36,7 @@
 | **`ldb`** | 用户门面；统一 re-export |
 | **`ldb-core`** | `Engine`、`Dialect`、`WhereBuilder`、CRUD Builder、配置与错误 |
 | **`ldb-macros`** | `#[derive(LdbModel)]` 过程宏 |
-| **`ldb-bench`** | ldb 与常用 Rust ORM 的性能基准 |
+| **`ldb-bench`** | ldb 与常用 Rust ORM 的业务场景性能基准 |
 
 用户只需依赖 `ldb`：
 
@@ -59,7 +59,7 @@ cargo test --all
 cargo doc --no-deps
 ```
 
-完整基准含 Diesel 时：`cargo bench -p ldb-bench --bench crud_compare --features diesel`（需系统 libmysqlclient；Linux 可装 `libmysqlclient-dev`）。
+完整基准含 Diesel 时：`cargo bench -p ldb-bench --bench scenario_compare --features diesel`（需系统 libmysqlclient；Linux 可装 `libmysqlclient-dev`）。场景含动态可选条件分页、带 total 的分页、部分更新、upsert、按 id 批量删、get_or_insert。
 
 ## 文档
 

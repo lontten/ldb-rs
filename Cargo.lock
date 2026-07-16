@@ -807,6 +807,7 @@ checksum = "229850a212cd9b84d4f0290ad9d294afc0ae70fccaa8949dbe8b43ffafa1e20c"
 dependencies = [
  "bitflags",
  "byteorder",
+ "chrono",
  "diesel_derives",
  "itoa",
  "mysqlclient-sys",
@@ -1693,6 +1694,7 @@ dependencies = [
 name = "ldb-bench"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "criterion",
  "diesel",
  "diesel-async",
