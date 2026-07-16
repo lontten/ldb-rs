@@ -127,6 +127,13 @@ pub fn run_bench(
     Box::pin(async move {
         backends::run(db, orm, op, n)
             .await
-            .unwrap_or_else(|e| panic!("bench {}/{}/{n}: {e}", db.label(), orm.label()));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "bench {}/{}/{}/{n}: {e}",
+                    db.label(),
+                    op.label(),
+                    orm.label()
+                )
+            });
     })
 }

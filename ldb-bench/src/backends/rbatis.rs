@@ -62,12 +62,13 @@ pub async fn run(
         }
         CrudOp::First => {
             reset_and_seed(db, n).await?;
-            let _: Option<BenchUser> = rb
+            let rows: Vec<BenchUser> = rb
                 .exec_decode(
                     "SELECT id, name, age FROM t_user WHERE id > 0 LIMIT 1",
                     vec![],
                 )
                 .await?;
+            let _ = rows.into_iter().next();
         }
         CrudOp::List => {
             reset_and_seed(db, n).await?;
@@ -79,7 +80,7 @@ pub async fn run(
         }
         CrudOp::Count => {
             reset_and_seed(db, n).await?;
-            let _: Option<i64> = rb
+            let _: i64 = rb
                 .exec_decode("SELECT COUNT(*) FROM t_user WHERE id > 0", vec![])
                 .await?;
         }
