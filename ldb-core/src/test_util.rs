@@ -18,6 +18,7 @@ static TEST_USER_TABLE: TableConf = TableConf {
     table_name: "t_user",
     primary_key_column_name_list: &["id"],
     auto_column: Some("id"),
+    soft_delete_column: None,
 };
 
 static TEST_USER_COLUMNS: [ColumnMeta; 3] = [
@@ -123,6 +124,70 @@ impl LdbModel for TestUserWhere {
                 }
             },
             _ => {}
+        }
+        Ok(())
+    }
+}
+
+/// 带时间戳软删除列的测试模型。
+#[derive(Debug, Clone, Default)]
+pub struct TestSoftUser {
+    pub id: Option<i64>,
+    pub name: Option<String>,
+    pub deleted_at: Option<String>,
+}
+
+static TEST_SOFT_USER_TABLE: TableConf = TableConf {
+    table_name: "t_soft_user",
+    primary_key_column_name_list: &["id"],
+    auto_column: Some("id"),
+    soft_delete_column: Some("deleted_at"),
+};
+
+static TEST_SOFT_USER_COLUMNS: [ColumnMeta; 3] = [
+    ColumnMeta {
+        field_name: "id",
+        column_name: "id",
+    },
+    ColumnMeta {
+        field_name: "name",
+        column_name: "name",
+    },
+    ColumnMeta {
+        field_name: "deleted_at",
+        column_name: "deleted_at",
+    },
+];
+
+impl LdbModel for TestSoftUser {
+    fn table_conf() -> &'static TableConf {
+        &TEST_SOFT_USER_TABLE
+    }
+
+    fn column_meta_list() -> &'static [ColumnMeta] {
+        &TEST_SOFT_USER_COLUMNS
+    }
+
+    fn field_sql_value(&self, field_name: &str) -> Option<SqlValue> {
+        match field_name {
+            "id" => self.id.map(SqlValue::I64),
+            "name" => self.name.clone().map(SqlValue::String),
+            "deleted_at" => self.deleted_at.clone().map(SqlValue::String),
+            _ => None,
+        }
+    }
+
+    fn set_field_sql_value(&mut self, field_name: &str, value: SqlValue) -> Result<(), LdbError> {
+        match (field_name, value) {
+            ("id", SqlValue::I64(value)) => self.id = Some(value),
+            ("name", SqlValue::String(value)) => self.name = Some(value),
+            ("deleted_at", SqlValue::String(value)) => self.deleted_at = Some(value),
+            (_, SqlValue::Null) => {}
+            _ => {
+                return Err(LdbError::ModelMapping(format!(
+                    "字段 `{field_name}` 类型不匹配"
+                )));
+            }
         }
         Ok(())
     }

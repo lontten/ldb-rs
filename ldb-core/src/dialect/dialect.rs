@@ -16,8 +16,12 @@ pub trait Dialect: Send + Sync {
     fn rewrite_sql<'a>(&self, query: &'a str) -> Cow<'a, str>;
 
     /// 生成 upsert 子句（MySQL `ON DUPLICATE KEY` / PG `ON CONFLICT`）。
-    fn upsert_clause(&self, table: &str, conflict_column_list: &[&str])
-    -> Result<String, LdbError>;
+    fn upsert_clause(
+        &self,
+        conflict_column_list: &[&str],
+        update_column_list: &[&str],
+        auto_column: Option<&str>,
+    ) -> Result<String, LdbError>;
 }
 
 /// 占位符绑定风格。

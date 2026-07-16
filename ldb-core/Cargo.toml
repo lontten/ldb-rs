@@ -18,6 +18,8 @@ sqlx = { workspace = true }
 tokio = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
 
 [features]
 default = ["mysql", "postgres"]

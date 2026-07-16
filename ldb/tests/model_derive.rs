@@ -83,3 +83,34 @@ fn derive_option_i32_field() {
         Some(ldb::SqlValue::I64(9))
     ));
 }
+
+#[test]
+fn derive_soft_delete_and_extended_types() {
+    #[derive(LdbModel)]
+    #[ldb(table = "t_event", soft_delete = "deleted_at")]
+    struct Event {
+        deleted_at: Option<chrono::DateTime<chrono::Utc>>,
+        token: Option<uuid::Uuid>,
+        payload: Option<Vec<u8>>,
+        sequence: Option<u64>,
+    }
+    assert_eq!(Event::table_conf().soft_delete_column, Some("deleted_at"));
+    let event = Event {
+        deleted_at: None,
+        token: Some(uuid::Uuid::nil()),
+        payload: Some(vec![1, 2]),
+        sequence: Some(u64::MAX),
+    };
+    assert!(matches!(
+        event.field_sql_value("token"),
+        Some(ldb::SqlValue::Uuid(_))
+    ));
+    assert!(matches!(
+        event.field_sql_value("payload"),
+        Some(ldb::SqlValue::Bytes(_))
+    ));
+    assert_eq!(
+        event.field_sql_value("sequence"),
+        Some(ldb::SqlValue::U64(u64::MAX))
+    );
+}

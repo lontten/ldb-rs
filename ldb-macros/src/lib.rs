@@ -15,6 +15,7 @@ pub fn derive_ldb_model(input: TokenStream) -> TokenStream {
     let mut table_name = None;
     let mut primary_key_list: Vec<String> = vec![];
     let mut auto_column = None;
+    let mut soft_delete_column = None;
 
     for attr in &input.attrs {
         if attr.path().is_ident("ldb") {
@@ -31,6 +32,10 @@ pub fn derive_ldb_model(input: TokenStream) -> TokenStream {
                     let value = meta.value()?;
                     let s: syn::LitStr = value.parse()?;
                     auto_column = Some(s.value());
+                } else if meta.path.is_ident("soft_delete") {
+                    let value = meta.value()?;
+                    let s: syn::LitStr = value.parse()?;
+                    soft_delete_column = Some(s.value());
                 }
                 Ok(())
             });
@@ -40,6 +45,10 @@ pub fn derive_ldb_model(input: TokenStream) -> TokenStream {
     let table_name = table_name.unwrap_or_else(|| name.to_string().to_lowercase());
     let auto_column_tokens = match &auto_column {
         Some(c) => quote! { Some(#c) },
+        None => quote! { None },
+    };
+    let soft_delete_column_tokens = match &soft_delete_column {
+        Some(column) => quote! { Some(#column) },
         None => quote! { None },
     };
     let pk_tokens: Vec<_> = primary_key_list.iter().map(|s| quote! { #s }).collect();
@@ -119,6 +128,7 @@ pub fn derive_ldb_model(input: TokenStream) -> TokenStream {
                     table_name: #table_name,
                     primary_key_column_name_list: &[#(#pk_tokens),*],
                     auto_column: #auto_column_tokens,
+                    soft_delete_column: #soft_delete_column_tokens,
                 };
                 &CONF
             }
@@ -188,8 +198,11 @@ fn option_field_to_sql_value(ty: &Type, field_ident: &syn::Ident) -> proc_macro2
     {
         let inner_str = quote!(#inner).to_string().replace(' ', "");
         return match inner_str.as_str() {
-            "i64" | "i32" | "u64" | "u32" => {
+            "i64" | "i32" => {
                 quote! { self.#field_ident.map(|v| ::ldb_core::sql_value::SqlValue::I64(v as i64)) }
+            }
+            "u64" | "u32" => {
+                quote! { self.#field_ident.map(|v| ::ldb_core::sql_value::SqlValue::U64(v as u64)) }
             }
             "String" => quote! {
                 self.#field_ident.as_ref().map(|v| ::ldb_core::sql_value::SqlValue::String(v.clone()))
@@ -199,6 +212,15 @@ fn option_field_to_sql_value(ty: &Type, field_ident: &syn::Ident) -> proc_macro2
             },
             "f64" => quote! {
                 self.#field_ident.map(|v| ::ldb_core::sql_value::SqlValue::F64(v))
+            },
+            "Vec<u8>" => quote! {
+                self.#field_ident.as_ref().map(|v| ::ldb_core::sql_value::SqlValue::Bytes(v.clone()))
+            },
+            "uuid::Uuid" | "Uuid" => quote! {
+                self.#field_ident.map(|v| ::ldb_core::sql_value::SqlValue::Uuid(v))
+            },
+            "chrono::DateTime<chrono::Utc>" | "DateTime<Utc>" => quote! {
+                self.#field_ident.map(|v| ::ldb_core::sql_value::SqlValue::DateTime(v))
             },
             _ => quote! { None },
         };
@@ -240,13 +262,30 @@ fn option_field_from_sql_value(ty: &Type, field_ident: &syn::Ident) -> proc_macr
                     _ => #mismatch,
                 }
             },
-            "i32" | "u64" | "u32" => quote! {
+            "i32" => quote! {
                 match value {
                     ::ldb_core::sql_value::SqlValue::Null => {
                         self.#field_ident = None;
                         Ok(())
                     }
                     ::ldb_core::sql_value::SqlValue::I64(n) => {
+                        self.#field_ident = Some(n as #inner);
+                        Ok(())
+                    }
+                    _ => #mismatch,
+                }
+            },
+            "u64" | "u32" => quote! {
+                match value {
+                    ::ldb_core::sql_value::SqlValue::Null => {
+                        self.#field_ident = None;
+                        Ok(())
+                    }
+                    ::ldb_core::sql_value::SqlValue::U64(n) => {
+                        self.#field_ident = Some(n as #inner);
+                        Ok(())
+                    }
+                    ::ldb_core::sql_value::SqlValue::I64(n) if n >= 0 => {
                         self.#field_ident = Some(n as #inner);
                         Ok(())
                     }
@@ -291,6 +330,45 @@ fn option_field_from_sql_value(ty: &Type, field_ident: &syn::Ident) -> proc_macr
                     }
                     ::ldb_core::sql_value::SqlValue::I64(n) => {
                         self.#field_ident = Some(n as f64);
+                        Ok(())
+                    }
+                    _ => #mismatch,
+                }
+            },
+            "Vec<u8>" => quote! {
+                match value {
+                    ::ldb_core::sql_value::SqlValue::Null => {
+                        self.#field_ident = None;
+                        Ok(())
+                    }
+                    ::ldb_core::sql_value::SqlValue::Bytes(v) => {
+                        self.#field_ident = Some(v);
+                        Ok(())
+                    }
+                    _ => #mismatch,
+                }
+            },
+            "uuid::Uuid" | "Uuid" => quote! {
+                match value {
+                    ::ldb_core::sql_value::SqlValue::Null => {
+                        self.#field_ident = None;
+                        Ok(())
+                    }
+                    ::ldb_core::sql_value::SqlValue::Uuid(v) => {
+                        self.#field_ident = Some(v);
+                        Ok(())
+                    }
+                    _ => #mismatch,
+                }
+            },
+            "chrono::DateTime<chrono::Utc>" | "DateTime<Utc>" => quote! {
+                match value {
+                    ::ldb_core::sql_value::SqlValue::Null => {
+                        self.#field_ident = None;
+                        Ok(())
+                    }
+                    ::ldb_core::sql_value::SqlValue::DateTime(v) => {
+                        self.#field_ident = Some(v);
                         Ok(())
                     }
                     _ => #mismatch,

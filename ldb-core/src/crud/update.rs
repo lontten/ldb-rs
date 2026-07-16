@@ -7,8 +7,8 @@ use crate::crud::common::BuilderFlags;
 use crate::engine::Engine;
 use crate::error::LdbError;
 use crate::model::LdbModel;
-use crate::sql_build::build_update;
-use crate::sql_value::{IntoSqlValue, SqlValue};
+use crate::sql_build::{SetClause, build_update};
+use crate::sql_value::IntoSqlValue;
 use crate::where_builder::WhereBuilder;
 
 /// 按主键更新 Builder。
@@ -16,7 +16,7 @@ pub struct UpdateByPkBuilder<'a, E, M> {
     engine: &'a E,
     model: &'a M,
     flags: BuilderFlags,
-    extra_set_list: Vec<(String, SqlValue)>,
+    extra_set_list: Vec<(String, SetClause)>,
 }
 
 /// 条件更新 Builder。
@@ -26,7 +26,7 @@ pub struct UpdateBuilder<'a, E, M> {
     flags: BuilderFlags,
     where_builder: Option<WhereBuilder>,
     allow_full_table: bool,
-    extra_set_list: Vec<(String, SqlValue)>,
+    extra_set_list: Vec<(String, SetClause)>,
 }
 
 pub fn update_by_primary_key<'a, E, M>(engine: &'a E, model: &'a M) -> UpdateByPkBuilder<'a, E, M>
@@ -79,15 +79,40 @@ macro_rules! update_builder_methods {
                 self
             }
 
+            pub fn skip_soft_delete(mut self, enabled: bool) -> Self {
+                self.flags = self.flags.skip_soft_delete(enabled);
+                self
+            }
+
             pub fn set_null(mut self, column: &str) -> Self {
                 self.extra_set_list
-                    .push((column.to_string(), SqlValue::Null));
+                    .push((column.to_string(), SetClause::Null));
                 self
             }
 
             pub fn set(mut self, column: &str, value: impl IntoSqlValue) -> Self {
                 self.extra_set_list
-                    .push((column.to_string(), value.into_sql_value()));
+                    .push((column.to_string(), SetClause::Bind(value.into_sql_value())));
+                self
+            }
+
+            pub fn set_increment(mut self, column: &str, value: impl IntoSqlValue) -> Self {
+                self.extra_set_list.push((
+                    column.to_string(),
+                    SetClause::Increment(value.into_sql_value()),
+                ));
+                self
+            }
+
+            pub fn set_expression(mut self, column: &str, expression: impl Into<String>) -> Self {
+                self.extra_set_list
+                    .push((column.to_string(), SetClause::Expression(expression.into())));
+                self
+            }
+
+            pub fn set_now(mut self, column: &str) -> Self {
+                self.extra_set_list
+                    .push((column.to_string(), SetClause::Now));
                 self
             }
         }
@@ -137,7 +162,16 @@ where
                     wb = wb.eq(col, v);
                 }
             }
-            let built = build_update(&table, self.model, &wb, &self.extra_set_list)?;
+            let wb =
+                crate::crud::common::apply_soft_delete_filter::<M>(wb, self.flags.skip_soft_delete);
+            let built = build_update(
+                &table,
+                self.model,
+                &wb,
+                &self.extra_set_list,
+                false,
+                self.engine.dialect(),
+            )?;
             run_update(self.engine, &self.flags, built).await
         })
     }
@@ -153,12 +187,21 @@ where
 
     fn into_future(self) -> Self::IntoFuture {
         Box::pin(async move {
-            let wb = self.where_builder.unwrap_or_default();
+            let mut wb = self.where_builder.unwrap_or_default();
             if wb.is_empty() && !self.allow_full_table {
                 return Err(LdbError::FullTableOpNotAllowed);
             }
+            wb =
+                crate::crud::common::apply_soft_delete_filter::<M>(wb, self.flags.skip_soft_delete);
             let table = self.flags.resolve_table_name::<M>();
-            let built = build_update(&table, self.patch, &wb, &self.extra_set_list)?;
+            let built = build_update(
+                &table,
+                self.patch,
+                &wb,
+                &self.extra_set_list,
+                self.allow_full_table,
+                self.engine.dialect(),
+            )?;
             run_update(self.engine, &self.flags, built).await
         })
     }
@@ -234,5 +277,22 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(n, 0);
+    }
+
+    #[tokio::test]
+    async fn update_renders_extended_set_clauses() {
+        let mock = MockExecutor::default();
+        let patch = TestUser::default();
+        update(&mock, &patch)
+            .where_(w().eq("id", 1))
+            .set_increment("age", 2)
+            .set_expression("name", "UPPER(name)")
+            .set_now("updated_at")
+            .await
+            .unwrap();
+        let sql = mock.last_sql().sql;
+        assert!(sql.contains("`age` = `age` + ?"));
+        assert!(sql.contains("`name` = UPPER(name)"));
+        assert!(sql.contains("`updated_at` = NOW()"));
     }
 }

@@ -119,6 +119,29 @@ async fn pg_upsert_on_conflict() {
 
 #[tokio::test]
 #[ignore = "requires LDB_PG_URL"]
+async fn pg_insert_fillback_and_upsert_update() {
+    let engine = require_pg().await;
+    let mut user = sample_user("pg_upsert", 30);
+    insert(&engine, &mut user).await.unwrap();
+    assert!(user.id.is_some());
+
+    let mut changed = sample_user("pg_upsert", 31);
+    insert(&engine, &mut changed)
+        .on_conflict(OnConflict::UpdateKey {
+            column_name_list: vec!["name".into()],
+        })
+        .await
+        .unwrap();
+    let row = first::<TestUser, _>(&engine)
+        .where_(w().eq("name", "pg_upsert"))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(row.age, Some(31));
+}
+
+#[tokio::test]
+#[ignore = "requires LDB_PG_URL"]
 async fn pg_transaction_commit() {
     let engine = require_pg().await;
 

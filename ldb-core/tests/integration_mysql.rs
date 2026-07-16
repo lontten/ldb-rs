@@ -129,6 +129,30 @@ async fn mysql_upsert_smoke() {
 
 #[tokio::test]
 #[ignore = "requires LDB_MYSQL_URL"]
+async fn mysql_insert_fillback_and_upsert_update() {
+    let engine = require_mysql().await;
+    let mut user = sample_user("mysql_upsert", 30);
+    insert(&engine, &mut user).await.unwrap();
+    assert!(user.id.is_some());
+
+    let mut changed = sample_user("mysql_upsert", 31);
+    insert(&engine, &mut changed)
+        .on_conflict(OnConflict::UpdateKey {
+            column_name_list: vec!["name".into()],
+        })
+        .await
+        .unwrap();
+    assert_eq!(changed.id, user.id);
+    let row = first::<TestUser, _>(&engine)
+        .where_(w().eq("name", "mysql_upsert"))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(row.age, Some(31));
+}
+
+#[tokio::test]
+#[ignore = "requires LDB_MYSQL_URL"]
 async fn mysql_transaction_commit() {
     let engine = require_mysql().await;
 

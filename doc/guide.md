@@ -1,6 +1,6 @@
 # 用法指南
 
-> **状态**：示例代码对应 [api.md](api.md) 中的目标 API，尚未实现。
+> 示例代码对应 [api.md](api.md) 中的已实现 API。
 
 ## 1. 安装与依赖
 
@@ -12,8 +12,8 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
 ```rust
 use ldb::{
-    connect_mysql, count, delete, first, get_or_insert, has, insert, list, update,
-    update_by_primary_key, w, LdbModel,
+    connect_mysql, count, delete, first, get_or_insert, has, insert, list, native_query,
+    prepare, query_build, update, update_by_primary_key, w, LdbModel,
     MysqlConfig, MysqlVersion, OnConflict, Order, PoolConfig,
 };
 ```
@@ -76,8 +76,8 @@ let db = connect_mysql(&config, Some(&pool)).await?;
 ## 3. 定义模型
 
 ```rust
-#[derive(LdbModel)]
-#[ldb(table = "t_user", primary_key = "id", auto_column = "id")]
+#[derive(Clone, Default, LdbModel)]
+#[ldb(table = "t_user", primary_key = "id", auto_column = "id", soft_delete = "deleted_at")]
 struct User {
     #[db(column = "id")]
     id: Option<i64>,
@@ -88,6 +88,8 @@ struct User {
 }
 
 /// 条件模型：仅 Some 字段参与 w().model(&cond)
+#[derive(Default, LdbModel)]
+#[ldb(table = "t_user")]
 struct UserWhere {
     name: Option<String>,
     age: Option<i32>,
@@ -174,6 +176,9 @@ let rows = update(&db, &patch)
             .is_null("age"),
     )
     .set_null("age")
+    .set_increment("login_count", 1)
+    .set_expression("name", "UPPER(name)")
+    .set_now("updated_at")
     .show_sql(true)
     .await?;
 ```
@@ -186,7 +191,7 @@ let rows = update(&db, &patch)
 
 ```rust
 let rows = delete::<User>(&db)
-    .where_(w().primary_key(1))
+    .where_(w().primary_key::<User>(1))
     .show_sql(true)
     .await?;
 ```
@@ -230,7 +235,7 @@ let rows = delete::<User>(&db)
 
 ```rust
 let user = first::<User>(&db)
-    .where_(w().primary_key(1))
+    .where_(w().primary_key::<User>(1))
     .show_sql(true)
     .await?;
 
@@ -361,13 +366,24 @@ tx.commit().await?;
 
 ---
 
-## 后续版本
+## 11. 扩展查询
 
-以下能力计划在后续版本提供，当前 API 不包含：
+```rust
+let user_list = query_build::<User, _>(&db)
+    .where_(w().gt("id", 0))
+    .order_by("id", Order::Desc)
+    .page(1, 20)
+    .await?;
 
-- QueryBuild（自定义 SELECT / 联表）
-- NativeQuery（原生 SQL 映射模型）
-- Prepare / StmtQuery（预编译语句）
-- Hook（生命周期钩子）
+let user_list = native_query::<User, _>(
+    &db,
+    "SELECT id, name, age, deleted_at FROM t_user WHERE age > ?",
+    [18],
+).await?;
 
-详见 [api.md §10](api.md#10-后续版本不在本-api-范围)。
+let statement = prepare(&db, "SELECT id, name, age, deleted_at FROM t_user WHERE id = ?").await?;
+let user_list = statement.query::<User>([1]).await?;
+```
+
+软删除模型的查询、更新与删除会自动应用 `deleted_at IS NULL`；需要访问全部
+记录或执行物理删除时使用 `.skip_soft_delete(true)`。

@@ -15,11 +15,14 @@ sqlx = { version = "0.8", default-features = false, features = [
     "mysql",
     "postgres",
     "chrono",
+    "uuid",
     "macros",
 ] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 thiserror = "2"
 serde = { version = "1", features = ["derive"] }
+chrono = "0.4"
+uuid = "1"
 syn = { version = "2", features = ["full"] }
 quote = "1"
 proc-macro2 = "1"

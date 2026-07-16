@@ -112,7 +112,7 @@ fn urlencoding_encode(s: &str) -> String {
 /// 连接池配置。
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PoolConfig {
-    /// 最大空闲连接数；`None` 表示驱动默认。
+    /// 最小保留连接数；映射到 sqlx `min_connections`。
     pub max_idle_count: Option<u32>,
     /// 最大打开连接数；`None` 或 `0` 表示不限制。
     pub max_open: Option<u32>,

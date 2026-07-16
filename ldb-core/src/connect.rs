@@ -16,7 +16,9 @@ pub async fn connect_mysql(
     let sqlx_pool = open_mysql_pool(config, pool).await?;
     Ok(MysqlEngine {
         pool: sqlx_pool,
-        dialect: Arc::new(MysqlDialect),
+        dialect: Arc::new(MysqlDialect {
+            version: config.version,
+        }),
     })
 }
 
@@ -26,7 +28,7 @@ pub async fn connect_mysql_url(url: &str) -> Result<MysqlEngine, LdbError> {
     let sqlx_pool = sqlx::MySqlPool::connect(url).await?;
     Ok(MysqlEngine {
         pool: sqlx_pool,
-        dialect: Arc::new(MysqlDialect),
+        dialect: Arc::new(MysqlDialect::default()),
     })
 }
 

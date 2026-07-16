@@ -1,6 +1,6 @@
 # 架构
 
-> **状态**：描述目标实现思路；用户 API 以 [api.md](api.md) 为准。
+> 用户 API 以 [api.md](api.md) 为准。
 
 ## Workspace 分层
 
@@ -14,7 +14,7 @@ flowchart TB
     end
     subgraph core [ldb-core]
         Engine[Engine / Transaction]
-        CRUD[insert / update / select ...]
+        CRUD[CRUD / QueryBuild / Native]
         WB[WhereBuilder]
         Bld["InsertBuilder / ListBuilder / ..."]
         Dialect[Dialect]
@@ -38,7 +38,7 @@ flowchart TB
 | Crate | 职责 |
 |-------|------|
 | `ldb` | 用户唯一依赖；re-export `ldb-core` 与 `ldb-macros` |
-| `ldb-core` | 连接、引擎、CRUD Builder、条件构建、方言、错误 |
+| `ldb-core` | 连接、引擎、CRUD/Query Builder、原生 SQL、条件构建、方言、错误 |
 | `ldb-macros` | 编译期派生 `LdbModel`；运行时元数据逻辑在 `ldb-core` |
 
 ## 请求链路
@@ -87,15 +87,7 @@ sequenceDiagram
 
 `MysqlVersion` 影响 upsert 语法与自增主键回填（`LAST_INSERT_ID` 等）。
 
-## 与当前骨架的差异
+## 扩展查询
 
-当前 `ldb-core` 仍为占位实现，与目标 API 的主要差异：
-
-| 当前骨架 | 目标 |
-|----------|------|
-| `ExtraContext` / `e()` | 删除；改为 CRUD Builder 链式 API |
-| `Engine::commit` / `rollback` 在 trait 上 | 移到 `Transaction` |
-| CRUD 函数未导出 | 在 `ldb-core` 实现，`ldb` re-export |
-| `#[derive(LdbModel)]` 为 `compile_error!` | 宏生成 `LdbModel` trait |
-
-实现时以 [api.md](api.md) 为准，按 [roadmap.md](roadmap.md) 分阶段对齐。
+`QueryBuild` 负责单表、内连接、排序与分页；`native_query` / `native_exec`
+提供原生 SQL 入口，`prepare` / `StmtQuery` 复用 sqlx 连接池的语句缓存。

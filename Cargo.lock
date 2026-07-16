@@ -365,8 +365,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1aa79e62e7697b8e29b513a68abacf485adcd1fe8284a4316c5ae868e6633327"
 dependencies = [
  "iana-time-zone",
+ "js-sys",
  "num-traits",
  "serde",
+ "wasm-bindgen",
  "windows-link",
 ]
 
@@ -1680,9 +1682,11 @@ dependencies = [
 name = "ldb"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "ldb-core",
  "ldb-macros",
  "tokio",
+ "uuid",
 ]
 
 [[package]]
@@ -1710,10 +1714,12 @@ dependencies = [
 name = "ldb-core"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "serde",
  "sqlx 0.8.6",
  "thiserror 2.0.18",
  "tokio",
+ "uuid",
 ]
 
 [[package]]

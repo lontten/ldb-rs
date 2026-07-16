@@ -1,19 +1,19 @@
 # 实现路线图
 
-> API 契约见 [api.md](api.md)；用法示例见 [guide.md](guide.md)。**审阅定稿 API 后再按本表实现。**
+> API 契约见 [api.md](api.md)；用法示例见 [guide.md](guide.md)。
 
 ## 阶段总览
 
 | 阶段 | 内容 | 对照文档 |
 |------|------|----------|
 | Commit 1 ✅ | workspace 骨架、模块 stub | — |
-| Commit 2 | 连接 API + `MysqlEngine` / `PgEngine` | api §1–3, guide §2 |
-| Commit 3 | `LdbModel` 宏 + `TableConf` / `ColumnMeta` | api §4, guide §3 |
-| Commit 4 | `WhereBuilder` 全方法 + `to_where_sql` | api §6, guide §8 |
-| Commit 5 | CRUD Builder 类型；删除 `ExtraContext` / `e()` | api §5、§7 |
-| Commit 6 | Insert / Update / Delete 入口与 `Future` 实现 | api §5, guide §4–6 |
-| Commit 7 | Select 族 + 事务 | api §5, guide §7、10 |
-| Commit 8 | `LdbError` 补全 + 集成测试 | api §8 |
+| Commit 2 ✅ | 连接 API + `MysqlEngine` / `PgEngine` | api §1–3, guide §2 |
+| Commit 3 ✅ | `LdbModel` 宏 + `TableConf` / `ColumnMeta` | api §4, guide §3 |
+| Commit 4 ✅ | `WhereBuilder` 全方法 + `to_where_sql` | api §6, guide §8 |
+| Commit 5 ✅ | CRUD Builder 类型；删除 `ExtraContext` / `e()` | api §5、§7 |
+| Commit 6 ✅ | Insert / Update / Delete 入口与 `Future` 实现 | api §5, guide §4–6 |
+| Commit 7 ✅ | Select 族 + 事务 | api §5, guide §7、10 |
+| Commit 8 ✅ | `LdbError` 补全 + 集成测试 | api §8 |
 
 ## Commit 2：连接
 
@@ -59,9 +59,10 @@
 - `LdbError` 变体与 `thiserror` 消息
 - 针对 MySQL / PG 的集成测试（需本地或 CI 数据库）
 
-## 后续版本（不在上述 commit）
+## 扩展能力
 
-- QueryBuild
-- NativeQuery
-- Prepare / StmtQuery
-- Hook
+- QueryBuild ✅
+- NativeQuery / NativeExec ✅
+- Prepare / StmtQuery ✅
+- 软删除 ✅
+- Hook（后续）

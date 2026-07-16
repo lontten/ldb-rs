@@ -4,7 +4,7 @@
 
 - **GitHub 仓库**：`ldb-rs`
 - **crates.io 发布名**：`ldb`（`cargo add ldb`）
-- **当前状态**：workspace 骨架；**目标 API 已在 doc 定稿，实现进行中**
+- **当前状态**：核心 CRUD、软删除、QueryBuild 与原生 SQL API 已实现
 
 ## 质量
 
@@ -29,13 +29,14 @@
 
 ## Workspace 架构
 
-本仓库是 **Cargo workspace**，包含三个 crate：
+本仓库是 **Cargo workspace**，包含四个 crate：
 
 | Crate | 职责 |
 |-------|------|
 | **`ldb`** | 用户门面；统一 re-export |
 | **`ldb-core`** | `Engine`、`Dialect`、`WhereBuilder`、CRUD Builder、配置与错误 |
 | **`ldb-macros`** | `#[derive(LdbModel)]` 过程宏 |
+| **`ldb-bench`** | ldb 与常用 Rust ORM 的性能基准 |
 
 用户只需依赖 `ldb`：
 
@@ -64,7 +65,7 @@ cargo doc --no-deps
 
 | 文档 | 说明 |
 |------|------|
-| [doc/api.md](doc/api.md) | **API 参考**（目标契约，尚未实现） |
+| [doc/api.md](doc/api.md) | **API 参考** |
 | [doc/guide.md](doc/guide.md) | **用法指南**（场景与示例） |
 | [doc/architecture.md](doc/architecture.md) | 架构与设计约束 |
 | [doc/roadmap.md](doc/roadmap.md) | 实现路线图 |

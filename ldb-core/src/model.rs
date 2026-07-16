@@ -3,12 +3,13 @@
 use crate::error::LdbError;
 use crate::sql_value::SqlValue;
 
-/// 表配置：表名、主键列、自增列。
+/// 表配置：表名、主键列、自增列与软删除列。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TableConf {
     pub table_name: &'static str,
     pub primary_key_column_name_list: &'static [&'static str],
     pub auto_column: Option<&'static str>,
+    pub soft_delete_column: Option<&'static str>,
 }
 
 /// 列元数据。
@@ -35,10 +36,10 @@ pub fn hydrate_model<T: LdbModel + Default>(
     column_value_list: &[(String, SqlValue)],
 ) -> Result<T, LdbError> {
     let mut model = T::default();
-    for meta in T::column_meta_list() {
-        if let Some((_, value)) = column_value_list
+    for (column, value) in column_value_list {
+        if let Some(meta) = T::column_meta_list()
             .iter()
-            .find(|(col, _)| col == meta.column_name)
+            .find(|meta| meta.column_name == column)
         {
             model.set_field_sql_value(meta.field_name, value.clone())?;
         }

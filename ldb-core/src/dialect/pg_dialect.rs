@@ -15,7 +15,7 @@ impl Dialect for PgDialect {
     }
 
     fn escape_identifier(&self, identifier: &str) -> String {
-        format!("\"{identifier}\"")
+        format!("\"{}\"", identifier.replace('"', "\"\""))
     }
 
     fn rewrite_sql<'a>(&self, query: &'a str) -> Cow<'a, str> {
@@ -24,8 +24,9 @@ impl Dialect for PgDialect {
 
     fn upsert_clause(
         &self,
-        table: &str,
         conflict_column_list: &[&str],
+        update_column_list: &[&str],
+        _auto_column: Option<&str>,
     ) -> Result<String, LdbError> {
         if conflict_column_list.is_empty() {
             return Err(LdbError::SqlBuild(
@@ -37,10 +38,18 @@ impl Dialect for PgDialect {
             .map(|c| self.escape_identifier(c))
             .collect::<Vec<_>>()
             .join(", ");
-        let escaped_table = self.escape_identifier(table);
-        Ok(format!(
-            "ON CONFLICT ({cols}) DO UPDATE SET {escaped_table}.id = EXCLUDED.id"
-        ))
+        if update_column_list.is_empty() {
+            return Ok(format!("ON CONFLICT ({cols}) DO NOTHING"));
+        }
+        let set_sql = update_column_list
+            .iter()
+            .map(|column| {
+                let escaped = self.escape_identifier(column);
+                format!("{escaped} = EXCLUDED.{escaped}")
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        Ok(format!("ON CONFLICT ({cols}) DO UPDATE SET {set_sql}"))
     }
 }
 
@@ -80,7 +89,7 @@ mod tests {
     #[test]
     fn upsert_on_conflict() {
         let d = PgDialect;
-        let clause = d.upsert_clause("t_user", &["name"]).unwrap();
+        let clause = d.upsert_clause(&["name"], &["age"], None).unwrap();
         assert!(clause.contains("ON CONFLICT"));
         assert!(clause.contains("\"name\""));
     }

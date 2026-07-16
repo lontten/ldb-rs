@@ -7,7 +7,7 @@ use crate::crud::common::BuilderFlags;
 use crate::engine::Engine;
 use crate::error::LdbError;
 use crate::model::LdbModel;
-use crate::sql_build::build_delete;
+use crate::sql_build::{build_delete, build_soft_delete};
 use crate::where_builder::WhereBuilder;
 
 /// 删除 Builder。
@@ -62,6 +62,11 @@ where
         self.flags = self.flags.dry_run(enabled);
         self
     }
+
+    pub fn skip_soft_delete(mut self, enabled: bool) -> Self {
+        self.flags = self.flags.skip_soft_delete(enabled);
+        self
+    }
 }
 
 impl<'a, E, T> IntoFuture for DeleteBuilder<'a, E, T>
@@ -74,9 +79,25 @@ where
 
     fn into_future(self) -> Self::IntoFuture {
         Box::pin(async move {
-            let wb = self.where_builder.unwrap_or_default();
+            let mut wb = self.where_builder.unwrap_or_default();
+            if wb.is_empty() && !self.allow_full_table {
+                return Err(LdbError::FullTableOpNotAllowed);
+            }
             let table = self.flags.resolve_table_name::<T>();
-            let built = build_delete(&table, &wb, self.allow_full_table)?;
+            let built = if !self.flags.skip_soft_delete
+                && let Some(column) = T::table_conf().soft_delete_column
+            {
+                wb = wb.is_null(column);
+                build_soft_delete(
+                    &table,
+                    column,
+                    &wb,
+                    self.allow_full_table,
+                    self.engine.dialect(),
+                )?
+            } else {
+                build_delete(&table, &wb, self.allow_full_table, self.engine.dialect())?
+            };
             if self.flags.show_sql {
                 eprintln!("SQL: {} {:?}", built.sql, built.arg_list);
             }
@@ -121,5 +142,18 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(n, 0);
+    }
+
+    #[tokio::test]
+    async fn delete_uses_soft_delete_column() {
+        let mock = MockExecutor::default();
+        delete::<crate::test_util::TestSoftUser, _>(&mock)
+            .where_(w().eq("id", 1))
+            .await
+            .unwrap();
+        let sql = mock.last_sql().sql;
+        assert!(sql.starts_with("UPDATE"));
+        assert!(sql.contains("`deleted_at` = NOW()"));
+        assert!(sql.contains("`deleted_at` IS NULL"));
     }
 }

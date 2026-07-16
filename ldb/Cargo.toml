@@ -22,3 +22,5 @@ ldb-macros = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+chrono = { workspace = true }
+uuid = { workspace = true }

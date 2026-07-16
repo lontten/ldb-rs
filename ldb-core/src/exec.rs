@@ -33,6 +33,12 @@ pub trait SqlExecutor: Send + Sync {
         built: &BuiltSql,
     ) -> impl std::future::Future<Output = Result<u64, LdbError>> + Send;
 
+    /// 执行 INSERT，并返回受影响行数与可选自增值。
+    fn execute_insert(
+        &self,
+        built: &BuiltSql,
+    ) -> impl std::future::Future<Output = Result<InsertExecution, LdbError>> + Send;
+
     /// 执行 SELECT 多行查询，返回结果行数；供基准测试等使用。
     fn query_rows(
         &self,
@@ -58,6 +64,13 @@ pub trait SqlExecutor: Send + Sync {
     ) -> impl std::future::Future<Output = Result<bool, LdbError>> + Send;
 }
 
+/// INSERT 的底层执行结果。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InsertExecution {
+    pub rows_affected: u64,
+    pub generated_id: Option<u64>,
+}
+
 /// MySQL 连接池引擎。
 #[derive(Clone)]
 pub struct MysqlEngine {
@@ -80,6 +93,9 @@ pub(crate) fn apply_pool_config_mysql(
         if let Some(n) = p.max_open.filter(|&v| v > 0) {
             opts = opts.max_connections(n);
         }
+        if let Some(n) = p.max_idle_count {
+            opts = opts.min_connections(n);
+        }
         if let Some(d) = p.max_lifetime {
             opts = opts.max_lifetime(d);
         }
@@ -97,6 +113,9 @@ pub(crate) fn apply_pool_config_pg(
     if let Some(p) = pool {
         if let Some(n) = p.max_open.filter(|&v| v > 0) {
             opts = opts.max_connections(n);
+        }
+        if let Some(n) = p.max_idle_count {
+            opts = opts.min_connections(n);
         }
         if let Some(d) = p.max_lifetime {
             opts = opts.max_lifetime(d);
@@ -132,10 +151,27 @@ pub(crate) fn bind_mysql<'q>(
         SqlValue::Null => q.bind(None::<String>),
         SqlValue::Bool(b) => q.bind(*b),
         SqlValue::I64(n) => q.bind(*n),
-        SqlValue::U64(n) => q.bind(*n as i64),
+        SqlValue::U64(n) => q.bind(*n),
         SqlValue::F64(n) => q.bind(*n),
         SqlValue::String(s) => q.bind(s.clone()),
+        SqlValue::Bytes(v) => q.bind(v.clone()),
+        SqlValue::DateTime(v) => q.bind(*v),
+        SqlValue::Uuid(v) => q.bind(*v),
     }
+}
+
+pub(crate) fn validate_built_args(built: &BuiltSql, db_kind: DbKind) -> Result<(), LdbError> {
+    if db_kind == DbKind::Pg
+        && built
+            .arg_list
+            .iter()
+            .any(|value| matches!(value, SqlValue::U64(n) if *n > i64::MAX as u64))
+    {
+        return Err(LdbError::SqlBuild(
+            "PostgreSQL 无法安全绑定超出 i64 范围的 u64".into(),
+        ));
+    }
+    Ok(())
 }
 
 pub(crate) fn bind_pg<'q>(
@@ -149,6 +185,9 @@ pub(crate) fn bind_pg<'q>(
         SqlValue::U64(n) => q.bind(*n as i64),
         SqlValue::F64(n) => q.bind(*n),
         SqlValue::String(s) => q.bind(s.clone()),
+        SqlValue::Bytes(v) => q.bind(v.clone()),
+        SqlValue::DateTime(v) => q.bind(*v),
+        SqlValue::Uuid(v) => q.bind(*v),
     }
 }
 
@@ -190,6 +229,15 @@ pub(crate) fn mysql_read_column(
     if let Ok(v) = row.try_get::<Option<f64>, _>(column) {
         return Ok(v.map(SqlValue::F64).unwrap_or(SqlValue::Null));
     }
+    if let Ok(v) = row.try_get::<Option<Vec<u8>>, _>(column) {
+        return Ok(v.map(SqlValue::Bytes).unwrap_or(SqlValue::Null));
+    }
+    if let Ok(v) = row.try_get::<Option<chrono::DateTime<chrono::Utc>>, _>(column) {
+        return Ok(v.map(SqlValue::DateTime).unwrap_or(SqlValue::Null));
+    }
+    if let Ok(v) = row.try_get::<Option<uuid::Uuid>, _>(column) {
+        return Ok(v.map(SqlValue::Uuid).unwrap_or(SqlValue::Null));
+    }
     Err(LdbError::ModelMapping(format!("无法读取列 `{column}`")))
 }
 
@@ -212,6 +260,15 @@ pub(crate) fn pg_read_column(
     }
     if let Ok(v) = row.try_get::<Option<f64>, _>(column) {
         return Ok(v.map(SqlValue::F64).unwrap_or(SqlValue::Null));
+    }
+    if let Ok(v) = row.try_get::<Option<Vec<u8>>, _>(column) {
+        return Ok(v.map(SqlValue::Bytes).unwrap_or(SqlValue::Null));
+    }
+    if let Ok(v) = row.try_get::<Option<chrono::DateTime<chrono::Utc>>, _>(column) {
+        return Ok(v.map(SqlValue::DateTime).unwrap_or(SqlValue::Null));
+    }
+    if let Ok(v) = row.try_get::<Option<uuid::Uuid>, _>(column) {
+        return Ok(v.map(SqlValue::Uuid).unwrap_or(SqlValue::Null));
     }
     Err(LdbError::ModelMapping(format!("无法读取列 `{column}`")))
 }
@@ -337,6 +394,7 @@ impl SqlExecutor for MysqlEngine {
     }
 
     async fn execute_built(&self, built: &BuiltSql) -> Result<u64, LdbError> {
+        validate_built_args(built, DbKind::Mysql)?;
         let sql = crate::sql_build::dialect_exec_sql(self.dialect(), built);
         let mut q = sqlx::query(&sql);
         for v in &built.arg_list {
@@ -345,7 +403,23 @@ impl SqlExecutor for MysqlEngine {
         Ok(q.execute(&self.pool).await?.rows_affected())
     }
 
+    async fn execute_insert(&self, built: &BuiltSql) -> Result<InsertExecution, LdbError> {
+        validate_built_args(built, DbKind::Mysql)?;
+        let sql = crate::sql_build::dialect_exec_sql(self.dialect(), built);
+        let mut q = sqlx::query(&sql);
+        for v in &built.arg_list {
+            q = bind_mysql(q, v);
+        }
+        let result = q.execute(&self.pool).await?;
+        let generated_id = result.last_insert_id();
+        Ok(InsertExecution {
+            rows_affected: result.rows_affected(),
+            generated_id: (generated_id > 0).then_some(generated_id),
+        })
+    }
+
     async fn query_rows(&self, built: &BuiltSql) -> Result<u64, LdbError> {
+        validate_built_args(built, DbKind::Mysql)?;
         let sql = crate::sql_build::dialect_exec_sql(self.dialect(), built);
         let mut q = sqlx::query(&sql);
         for v in &built.arg_list {
@@ -380,6 +454,7 @@ impl SqlExecutor for PgEngine {
     }
 
     async fn execute_built(&self, built: &BuiltSql) -> Result<u64, LdbError> {
+        validate_built_args(built, DbKind::Pg)?;
         let sql = crate::sql_build::dialect_exec_sql(self.dialect(), built);
         let mut q = sqlx::query(&sql);
         for v in &built.arg_list {
@@ -388,7 +463,40 @@ impl SqlExecutor for PgEngine {
         Ok(q.execute(&self.pool).await?.rows_affected())
     }
 
+    async fn execute_insert(&self, built: &BuiltSql) -> Result<InsertExecution, LdbError> {
+        validate_built_args(built, DbKind::Pg)?;
+        let sql = crate::sql_build::dialect_exec_sql(self.dialect(), built);
+        let mut q = sqlx::query(&sql);
+        for v in &built.arg_list {
+            q = bind_pg(q, v);
+        }
+        if built.sql.contains(" RETURNING ") {
+            use sqlx::Row;
+            let row = q.fetch_optional(&self.pool).await?;
+            match row {
+                Some(row) => {
+                    let id: i64 = row.try_get(0)?;
+                    Ok(InsertExecution {
+                        rows_affected: 1,
+                        generated_id: Some(id as u64),
+                    })
+                }
+                None => Ok(InsertExecution {
+                    rows_affected: 0,
+                    generated_id: None,
+                }),
+            }
+        } else {
+            let result = q.execute(&self.pool).await?;
+            Ok(InsertExecution {
+                rows_affected: result.rows_affected(),
+                generated_id: None,
+            })
+        }
+    }
+
     async fn query_rows(&self, built: &BuiltSql) -> Result<u64, LdbError> {
+        validate_built_args(built, DbKind::Pg)?;
         let sql = crate::sql_build::dialect_exec_sql(self.dialect(), built);
         let mut q = sqlx::query(&sql);
         for v in &built.arg_list {
@@ -401,14 +509,17 @@ impl SqlExecutor for PgEngine {
         &self,
         built: &BuiltSql,
     ) -> Result<Vec<T>, LdbError> {
+        validate_built_args(built, DbKind::Pg)?;
         pg_fetch_models(&self.pool, built, self.dialect()).await
     }
 
     async fn query_scalar_u64(&self, built: &BuiltSql) -> Result<u64, LdbError> {
+        validate_built_args(built, DbKind::Pg)?;
         pg_query_scalar_u64(&self.pool, built, self.dialect()).await
     }
 
     async fn query_exists(&self, built: &BuiltSql) -> Result<bool, LdbError> {
+        validate_built_args(built, DbKind::Pg)?;
         pg_query_exists(&self.pool, built, self.dialect()).await
     }
 }
@@ -446,6 +557,7 @@ pub type MockRow = Vec<(String, SqlValue)>;
 pub struct MockExecutor {
     pub recorded: Arc<Mutex<RecordedSql>>,
     mock_row_list: Arc<Mutex<Vec<MockRow>>>,
+    mock_generated_id: Arc<Mutex<Option<u64>>>,
 }
 
 impl MockExecutor {
@@ -457,6 +569,11 @@ impl MockExecutor {
     pub fn set_mock_rows(&self, row_list: Vec<MockRow>) {
         *self.mock_row_list.lock().unwrap() = row_list;
     }
+
+    /// 预设 INSERT 返回的自增值。
+    pub fn set_mock_generated_id(&self, id: u64) {
+        *self.mock_generated_id.lock().unwrap() = Some(id);
+    }
 }
 
 impl SqlExecutor for MockExecutor {
@@ -465,7 +582,9 @@ impl SqlExecutor for MockExecutor {
     }
 
     fn dialect(&self) -> &dyn Dialect {
-        static D: MysqlDialect = MysqlDialect;
+        static D: MysqlDialect = MysqlDialect {
+            version: crate::config::MysqlVersion::Latest,
+        };
         &D
     }
 
@@ -474,6 +593,14 @@ impl SqlExecutor for MockExecutor {
         rec.sql = built.sql.clone();
         rec.arg_list = built.arg_list.clone();
         Ok(1)
+    }
+
+    async fn execute_insert(&self, built: &BuiltSql) -> Result<InsertExecution, LdbError> {
+        self.execute_built(built).await?;
+        Ok(InsertExecution {
+            rows_affected: 1,
+            generated_id: *self.mock_generated_id.lock().unwrap(),
+        })
     }
 
     async fn query_rows(&self, built: &BuiltSql) -> Result<u64, LdbError> {
@@ -608,5 +735,15 @@ mod tests {
             let q = sqlx::query::<Postgres>("SELECT 1");
             let _ = bind_pg(q, &v);
         }
+    }
+
+    #[test]
+    fn pg_rejects_u64_outside_i64_range() {
+        let built = BuiltSql {
+            sql: "SELECT ?".into(),
+            arg_list: vec![SqlValue::U64(u64::MAX)],
+        };
+        assert!(validate_built_args(&built, DbKind::Pg).is_err());
+        assert!(validate_built_args(&built, DbKind::Mysql).is_ok());
     }
 }

@@ -11,6 +11,9 @@ pub enum SqlValue {
     U64(u64),
     F64(f64),
     String(String),
+    Bytes(Vec<u8>),
+    DateTime(chrono::DateTime<chrono::Utc>),
+    Uuid(uuid::Uuid),
 }
 
 impl SqlValue {
@@ -31,6 +34,9 @@ impl fmt::Display for SqlValue {
             SqlValue::U64(v) => write!(f, "{v}"),
             SqlValue::F64(v) => write!(f, "{v}"),
             SqlValue::String(v) => write!(f, "{v}"),
+            SqlValue::Bytes(v) => write!(f, "{v:?}"),
+            SqlValue::DateTime(v) => write!(f, "{v}"),
+            SqlValue::Uuid(v) => write!(f, "{v}"),
         }
     }
 }
@@ -118,6 +124,24 @@ impl IntoSqlValue for String {
     }
 }
 
+impl IntoSqlValue for Vec<u8> {
+    fn into_sql_value(self) -> SqlValue {
+        SqlValue::Bytes(self)
+    }
+}
+
+impl IntoSqlValue for chrono::DateTime<chrono::Utc> {
+    fn into_sql_value(self) -> SqlValue {
+        SqlValue::DateTime(self)
+    }
+}
+
+impl IntoSqlValue for uuid::Uuid {
+    fn into_sql_value(self) -> SqlValue {
+        SqlValue::Uuid(self)
+    }
+}
+
 impl<T: IntoSqlValue> IntoSqlValue for Option<T> {
     fn into_sql_value(self) -> SqlValue {
         match self {
@@ -135,6 +159,9 @@ pub fn sql_value_to_string(value: &SqlValue) -> String {
         SqlValue::U64(v) => v.to_string(),
         SqlValue::F64(v) => v.to_string(),
         SqlValue::String(v) => v.clone(),
+        SqlValue::Bytes(v) => format!("{v:?}"),
+        SqlValue::DateTime(v) => v.to_string(),
+        SqlValue::Uuid(v) => v.to_string(),
     }
 }
 

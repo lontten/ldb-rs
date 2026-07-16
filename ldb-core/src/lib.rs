@@ -8,8 +8,10 @@ pub mod engine;
 pub mod error;
 pub mod exec;
 pub mod model;
+pub mod native;
 pub mod on_conflict;
 pub mod order;
+pub mod query_build;
 pub mod sql_build;
 pub mod sql_value;
 pub mod where_builder;
@@ -27,7 +29,7 @@ pub use connect::{connect_mysql_url, connect_pg_url};
 pub use crud::{
     CountBuilder, DeleteBuilder, FirstBuilder, GetOrInsertBuilder, HasBuilder, InsertBuilder,
     ListBuilder, UpdateBuilder, UpdateByPkBuilder, count, delete, first, get_or_insert, has,
-    insert, list, update, update_by_primary_key,
+    has_or_insert, insert, list, update, update_by_primary_key,
 };
 pub use dialect::dialect::{Dialect, PlaceholderStyle};
 pub use engine::{Engine, InsertResult, Transaction};
@@ -35,7 +37,10 @@ pub use error::LdbError;
 pub use exec::MockExecutor;
 pub use exec::{MysqlEngine, PgEngine};
 pub use model::{ColumnMeta, LdbModel, TableConf};
+pub use native::{PreparedStatement, StmtQuery, native_exec, native_query, prepare};
 pub use on_conflict::OnConflict;
 pub use order::{Order, OrderBy};
+pub use query_build::{QueryBuild, query_build};
+pub use sql_build::SetClause;
 pub use sql_value::{IntoSqlValue, SqlValue};
 pub use where_builder::{WhereBuilder, w};

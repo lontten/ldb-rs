@@ -81,8 +81,23 @@ where
             if self.flags.dry_run {
                 return Ok(InsertResult { rows_affected: 0 });
             }
-            let n = self.engine.execute_built(&built).await?;
-            Ok(InsertResult { rows_affected: n })
+            let result = self.engine.execute_insert(&built).await?;
+            if let (Some(column), Some(id)) = (M::table_conf().auto_column, result.generated_id) {
+                let field_name = M::column_meta_list()
+                    .iter()
+                    .find(|meta| meta.column_name == column)
+                    .map(|meta| meta.field_name)
+                    .ok_or_else(|| {
+                        LdbError::ModelMapping(format!("自增列 `{column}` 没有对应字段"))
+                    })?;
+                let value = i64::try_from(id)
+                    .map(crate::sql_value::SqlValue::I64)
+                    .unwrap_or(crate::sql_value::SqlValue::U64(id));
+                self.model.set_field_sql_value(field_name, value)?;
+            }
+            Ok(InsertResult {
+                rows_affected: result.rows_affected,
+            })
         })
     }
 }
@@ -113,8 +128,10 @@ mod tests {
             name: Some("tom".into()),
             age: None,
         };
+        mock.set_mock_generated_id(42);
         let result = insert(&mock, &mut user).await.unwrap();
         assert_eq!(result.rows_affected, 1);
+        assert_eq!(user.id, Some(42));
         assert!(mock.last_sql().sql.contains("INSERT"));
     }
 

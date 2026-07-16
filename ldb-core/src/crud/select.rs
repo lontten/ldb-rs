@@ -87,6 +87,25 @@ where
     }
 }
 
+/// 存在时返回 `true`，不存在时插入并返回 `false`。
+pub async fn has_or_insert<T, E>(
+    engine: &E,
+    where_builder: WhereBuilder,
+    candidate: &mut T,
+) -> Result<bool, LdbError>
+where
+    T: LdbModel + Clone + Default,
+    E: Engine,
+{
+    if has::<T, _>(engine).where_(where_builder.clone()).await? {
+        return Ok(true);
+    }
+    crate::crud::insert::insert(engine, candidate)
+        .on_conflict(crate::on_conflict::OnConflict::DoNothing)
+        .await?;
+    Ok(false)
+}
+
 macro_rules! select_methods {
     ($t:ty) => {
         impl<'a, E, T> $t
@@ -131,6 +150,11 @@ macro_rules! select_methods {
                 self.state.flags = self.state.flags.dry_run(enabled);
                 self
             }
+
+            pub fn skip_soft_delete(mut self, enabled: bool) -> Self {
+                self.state.flags = self.state.flags.skip_soft_delete(enabled);
+                self
+            }
         }
     };
 }
@@ -160,6 +184,16 @@ where
         self
     }
 
+    pub fn table_name(mut self, name: impl Into<String>) -> Self {
+        self.state.flags = self.state.flags.table_name(name);
+        self
+    }
+
+    pub fn skip_soft_delete(mut self, enabled: bool) -> Self {
+        self.state.flags = self.state.flags.skip_soft_delete(enabled);
+        self
+    }
+
     pub fn dry_run(mut self, enabled: bool) -> Self {
         self.state.flags = self.state.flags.dry_run(enabled);
         self
@@ -171,10 +205,11 @@ async fn run_select<E: Engine, T: LdbModel>(
     state: &SelectState,
     kind: SelectKind,
 ) -> Result<crate::sql_build::BuiltSql, LdbError> {
-    let wb = state.where_builder.clone().unwrap_or_default();
+    let mut wb = state.where_builder.clone().unwrap_or_default();
     if wb.is_empty() {
         return Err(LdbError::WhereRequired);
     }
+    wb = crate::crud::common::apply_soft_delete_filter::<T>(wb, state.flags.skip_soft_delete);
     let table = state.flags.resolve_table_name::<T>();
     let built = build_select::<T>(
         &table,
@@ -183,6 +218,7 @@ async fn run_select<E: Engine, T: LdbModel>(
         &state.order_by_list,
         state.limit,
         state.offset,
+        _engine.dialect(),
     )?;
     if state.flags.show_sql {
         eprintln!("SQL: {} {:?}", built.sql, built.arg_list);
@@ -281,17 +317,25 @@ where
             if wb.is_empty() {
                 return Err(LdbError::WhereRequired);
             }
-            let existing = first::<T, _>(self.engine).where_(wb.clone());
+            let table = self.state.flags.resolve_table_name::<T>();
+            let existing = first::<T, _>(self.engine)
+                .table_name(&table)
+                .where_(wb.clone());
             if let Some(row) = existing.await? {
                 return Ok(row);
             }
             crate::crud::insert::insert(self.engine, self.candidate)
+                .table_name(&table)
                 .on_conflict(
                     self.on_conflict
                         .unwrap_or(crate::on_conflict::OnConflict::DoNothing),
                 )
                 .await?;
-            Ok(self.candidate.clone())
+            first::<T, _>(self.engine)
+                .table_name(table)
+                .where_(wb)
+                .await?
+                .ok_or_else(|| LdbError::ModelMapping("插入后未查询到数据库行".into()))
         })
     }
 }
@@ -411,5 +455,15 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(row.age, Some(30));
+    }
+
+    #[tokio::test]
+    async fn select_adds_soft_delete_filter() {
+        let mock = MockExecutor::default();
+        let _ = list::<crate::test_util::TestSoftUser, _>(&mock)
+            .where_(w().gt("id", 0))
+            .await
+            .unwrap();
+        assert!(mock.last_sql().sql.contains("`deleted_at` IS NULL"));
     }
 }

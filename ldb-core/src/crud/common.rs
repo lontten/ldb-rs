@@ -5,6 +5,7 @@ pub struct BuilderFlags {
     pub table_name: Option<String>,
     pub show_sql: bool,
     pub dry_run: bool,
+    pub skip_soft_delete: bool,
 }
 
 impl BuilderFlags {
@@ -23,11 +24,26 @@ impl BuilderFlags {
         self
     }
 
+    pub fn skip_soft_delete(mut self, enabled: bool) -> Self {
+        self.skip_soft_delete = enabled;
+        self
+    }
+
     pub fn resolve_table_name<M: crate::model::LdbModel>(&self) -> String {
         self.table_name
             .clone()
             .unwrap_or_else(|| M::table_conf().table_name.to_string())
     }
+}
+
+pub(crate) fn apply_soft_delete_filter<M: crate::model::LdbModel>(
+    mut where_builder: crate::where_builder::WhereBuilder,
+    skip: bool,
+) -> crate::where_builder::WhereBuilder {
+    if !skip && let Some(column) = M::table_conf().soft_delete_column {
+        where_builder = where_builder.is_null(column);
+    }
+    where_builder
 }
 
 #[cfg(test)]

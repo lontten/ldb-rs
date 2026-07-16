@@ -1,5 +1,6 @@
 //! WHERE 条件构建器。
 
+use crate::dialect::dialect::Dialect;
 use crate::error::LdbError;
 use crate::sql_value::{IntoSqlValue, SqlValue};
 
@@ -130,12 +131,31 @@ impl WhereBuilder {
         self
     }
 
-    pub fn primary_key(self, id: impl IntoSqlValue) -> Self {
-        self.eq("id", id)
+    pub fn primary_key<M: crate::model::LdbModel>(self, id: impl IntoSqlValue) -> Self {
+        match M::table_conf().primary_key_column_name_list {
+            [column] => self.eq(column, id),
+            _ => self,
+        }
     }
 
-    pub fn filter_primary_key(self) -> Self {
-        self.is_not_null("id")
+    pub fn primary_key_model<M: crate::model::LdbModel>(mut self, model: &M) -> Self {
+        for column in M::table_conf().primary_key_column_name_list {
+            if let Some(meta) = M::column_meta_list()
+                .iter()
+                .find(|meta| meta.column_name == *column)
+                && let Some(value) = model.field_sql_value(meta.field_name)
+            {
+                self = self.eq(column, value);
+            }
+        }
+        self
+    }
+
+    pub fn filter_primary_key<M: crate::model::LdbModel>(mut self) -> Self {
+        for column in M::table_conf().primary_key_column_name_list {
+            self = self.is_not_null(column);
+        }
+        self
     }
 
     pub fn eq(self, column: &str, value: impl IntoSqlValue) -> Self {
@@ -311,6 +331,18 @@ impl WhereBuilder {
 
     /// 生成 `WHERE` 子句（不含 `WHERE` 关键字）与绑定参数。
     pub fn to_sql(&self) -> Result<(String, Vec<SqlValue>), LdbError> {
+        self.render(None)
+    }
+
+    /// 使用数据库方言转义标识符后生成条件 SQL。
+    pub fn to_sql_with_dialect(
+        &self,
+        dialect: &dyn Dialect,
+    ) -> Result<(String, Vec<SqlValue>), LdbError> {
+        self.render(Some(dialect))
+    }
+
+    fn render(&self, dialect: Option<&dyn Dialect>) -> Result<(String, Vec<SqlValue>), LdbError> {
         if self.is_empty() {
             return Ok((String::new(), vec![]));
         }
@@ -318,7 +350,7 @@ impl WhereBuilder {
         let mut sql = String::new();
         for node in &self.node_list {
             let WhereNode::Group(group) = node;
-            render_group(group, &mut sql, &mut args)?;
+            render_group(group, &mut sql, &mut args, dialect)?;
         }
         Ok((sql, args))
     }
@@ -328,6 +360,7 @@ fn render_group(
     group: &WhereGroup,
     sql: &mut String,
     args: &mut Vec<SqlValue>,
+    dialect: Option<&dyn Dialect>,
 ) -> Result<(), LdbError> {
     if group.item_list.is_empty() {
         return Ok(());
@@ -337,9 +370,12 @@ fn render_group(
     }
     for (i, item) in group.item_list.iter().enumerate() {
         if i > 0 {
-            sql.push_str(" AND ");
+            sql.push_str(match item {
+                WhereItem::Or(_) => " OR ",
+                _ => " AND ",
+            });
         }
-        render_item(item, sql, args)?;
+        render_item(item, sql, args, dialect)?;
     }
     if group.negate {
         sql.push(')');
@@ -351,10 +387,11 @@ fn render_item(
     item: &WhereItem,
     sql: &mut String,
     args: &mut Vec<SqlValue>,
+    dialect: Option<&dyn Dialect>,
 ) -> Result<(), LdbError> {
     match item {
         WhereItem::And(inner) => {
-            let (s, a) = inner.to_sql()?;
+            let (s, a) = inner.render(dialect)?;
             if s.is_empty() {
                 return Ok(());
             }
@@ -364,7 +401,7 @@ fn render_item(
             args.extend(a);
         }
         WhereItem::Or(inner) => {
-            let (s, a) = inner.to_sql()?;
+            let (s, a) = inner.render(dialect)?;
             if s.is_empty() {
                 return Ok(());
             }
@@ -373,7 +410,7 @@ fn render_item(
             sql.push(')');
             args.extend(a);
         }
-        WhereItem::Leaf(leaf) => render_leaf(leaf, sql, args)?,
+        WhereItem::Leaf(leaf) => render_leaf(leaf, sql, args, dialect)?,
     }
     Ok(())
 }
@@ -382,15 +419,21 @@ fn render_leaf(
     leaf: &WhereLeaf,
     sql: &mut String,
     args: &mut Vec<SqlValue>,
+    dialect: Option<&dyn Dialect>,
 ) -> Result<(), LdbError> {
+    let escaped = |column: &str| {
+        dialect
+            .map(|d| d.escape_identifier(column))
+            .unwrap_or_else(|| column.to_string())
+    };
     match leaf {
         WhereLeaf::Eq { column, value } => {
-            sql.push_str(column);
+            sql.push_str(&escaped(column));
             sql.push_str(" = ?");
             args.push(value.clone());
         }
         WhereLeaf::NotEq { column, value } => {
-            sql.push_str(column);
+            sql.push_str(&escaped(column));
             sql.push_str(" <> ?");
             args.push(value.clone());
         }
@@ -398,7 +441,7 @@ fn render_leaf(
             if value_list.is_empty() {
                 return Err(LdbError::SqlBuild("IN 列表不能为空".into()));
             }
-            sql.push_str(column);
+            sql.push_str(&escaped(column));
             sql.push_str(" IN (");
             for (i, _) in value_list.iter().enumerate() {
                 if i > 0 {
@@ -411,7 +454,7 @@ fn render_leaf(
             args.extend(value_list.clone());
         }
         WhereLeaf::NotInList { column, value_list } => {
-            sql.push_str(column);
+            sql.push_str(&escaped(column));
             sql.push_str(" NOT IN (");
             for (i, _) in value_list.iter().enumerate() {
                 if i > 0 {
@@ -424,56 +467,56 @@ fn render_leaf(
             args.extend(value_list.clone());
         }
         WhereLeaf::Gt { column, value } => {
-            sql.push_str(column);
+            sql.push_str(&escaped(column));
             sql.push_str(" > ?");
             args.push(value.clone());
         }
         WhereLeaf::Gte { column, value } => {
-            sql.push_str(column);
+            sql.push_str(&escaped(column));
             sql.push_str(" >= ?");
             args.push(value.clone());
         }
         WhereLeaf::Lt { column, value } => {
-            sql.push_str(column);
+            sql.push_str(&escaped(column));
             sql.push_str(" < ?");
             args.push(value.clone());
         }
         WhereLeaf::Lte { column, value } => {
-            sql.push_str(column);
+            sql.push_str(&escaped(column));
             sql.push_str(" <= ?");
             args.push(value.clone());
         }
         WhereLeaf::Between { column, low, high } => {
-            sql.push_str(column);
+            sql.push_str(&escaped(column));
             sql.push_str(" BETWEEN ? AND ?");
             args.push(low.clone());
             args.push(high.clone());
         }
         WhereLeaf::IsNull { column } => {
-            sql.push_str(column);
+            sql.push_str(&escaped(column));
             sql.push_str(" IS NULL");
         }
         WhereLeaf::IsNotNull { column } => {
-            sql.push_str(column);
+            sql.push_str(&escaped(column));
             sql.push_str(" IS NOT NULL");
         }
         WhereLeaf::Like { column, pattern } => {
-            sql.push_str(column);
+            sql.push_str(&escaped(column));
             sql.push_str(" LIKE ?");
             args.push(SqlValue::String(pattern.clone()));
         }
         WhereLeaf::LikeLeft { column, pattern } => {
-            sql.push_str(column);
+            sql.push_str(&escaped(column));
             sql.push_str(" LIKE ?");
             args.push(SqlValue::String(format!("%{pattern}")));
         }
         WhereLeaf::LikeRight { column, pattern } => {
-            sql.push_str(column);
+            sql.push_str(&escaped(column));
             sql.push_str(" LIKE ?");
             args.push(SqlValue::String(format!("{pattern}%")));
         }
         WhereLeaf::NotLike { column, pattern } => {
-            sql.push_str(column);
+            sql.push_str(&escaped(column));
             sql.push_str(" NOT LIKE ?");
             args.push(SqlValue::String(pattern.clone()));
         }
@@ -503,8 +546,7 @@ mod tests {
     #[test]
     fn and_or_composition() {
         let (sql, args) = w().eq("age", 18).or(w().is_null("age")).to_sql().unwrap();
-        assert!(sql.contains("age = ?"));
-        assert!(sql.contains("age IS NULL"));
+        assert_eq!(sql, "age = ? OR (age IS NULL)");
         assert_eq!(args.len(), 1);
     }
 
@@ -601,8 +643,8 @@ mod tests {
         };
         let (sql, args) = w()
             .model(&cond)
-            .primary_key(9i64)
-            .filter_primary_key()
+            .primary_key::<crate::test_util::TestUser>(9i64)
+            .filter_primary_key::<crate::test_util::TestUser>()
             .to_sql()
             .unwrap();
         assert!(sql.contains("name = ?"));
