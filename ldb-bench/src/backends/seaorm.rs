@@ -120,7 +120,7 @@ pub async fn run(
                     );
                 }
             }
-            insert.exec(&conn).await?;
+            insert.exec_without_returning(&conn).await?;
         }
         Scenario::DeleteByIds => {
             let ids = delete_id_list();
