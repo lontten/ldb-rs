@@ -6,6 +6,10 @@ alwaysApply: false
 
 # ldb 项目约定
 
+## Git
+
+- 本仓库 remote（SSH）：`git@github.com:lontten/ldb-rs.git`
+
 ## 定位
 
 - **ldb-rs**：Git 仓库名；**ldb**：crates.io 发布名与用户 `cargo add` 依赖名
@@ -58,6 +62,6 @@ alwaysApply: false
 | `README.md`、`doc/` | 项目与用户文档 |
 | 源码注释、`Cargo.toml` | 仅 ldb ORM 语义 |
 | Git commit / PR | 只描述代码与项目变更，**不提**协作工具 |
-| `.cursor/` | 协作配置，随仓库提交（`plans/` 除外） |
+| `.cursor/` | 仅项目特有的 rules/skills 随仓库提交（`plans/` 除外；通用约定在用户级） |
 
 不得在 `README.md` / `doc/` 中引用 `.cursor` 或写入协作交接类内容。细则见 `cursor-agent.mdc`。
