@@ -1,5 +1,5 @@
 ---
-description: Git commit、push 仅由 Cursor UI 快捷按钮触发
+description: Git commit、push、PR 流程与安全约束
 alwaysApply: true
 ---
 
@@ -7,22 +7,14 @@ alwaysApply: true
 
 ## 触发门槛
 
-| 来源 | commit | push |
-|------|--------|------|
-| 聊天「提交」「commit」「帮我 push」等 | **禁止** | **禁止** |
-| Cursor Diff 面板 **Commit** 按钮 | **允许** | — |
-| Cursor Diff 面板 **Push** 按钮 | — | **允许** |
+- 用户明确要求后才 commit / push / 创建 PR（如「提交」「commit」「帮我 push」「创建 PR」）；不主动执行
+- 不修改 `git config`；不执行 `push --force`、`reset --hard` 等破坏性命令，除非用户明确要求并已批准
 
-- 聊天请求 commit / push 时：**只回复一句**——「按本仓库约定，请手动点击上方 Commit / Push 快捷按钮。」不展开、不列步骤；**不**执行 `git commit` / `git push`
-- UI 按钮触发时（系统下发 `Execute the selected diff-tab commit/push action` 类指令）：视为明确授权，执行下方完整流程
-- **不主动** commit / push；不修改 `git config`；不执行 `push --force`、`reset --hard` 等破坏性命令，除非按钮附带指令且用户已批准
-- **PR**：无对等快捷按钮；聊天请求时同样一句带过，不执行
+本规则在 **commit / push / PR 创建** 的流程与安全约束上优先于其他用户级 Git 习惯约定。
 
-本规则在 **commit / push 入口** 上优先于用户级「说提交就提交」类约定。
+## Commit 流程
 
-## UI Commit 流程
-
-按钮触发后：
+授权后：
 
 1. 并行只读检查：`git status`、`git diff`（含 staged）、`git log -5`
 2. 只 stage 与本次改动相关的文件；排除无关文件、`.env`、凭据
@@ -31,27 +23,36 @@ alwaysApply: true
    - 前缀：`fix:`、`ci:`、`docs:`、`feat:` 等
    - 中文说明「为什么」；一行标题 + 可选正文
 5. commit message **禁止**出现 Cursor / Agent / AI 等协作用语（见 `cursor-agent.mdc` 项目暴露面）
-6. 按钮指令含 **Do not push** 时不得 push
+6. 授权指令含 **Do not push** 时不得 push；用户仅说「提交 / commit」时默认只 commit、不 push
 7. pre-commit hook 失败：修复后**新建** commit，不 amend
-8. amend 仅当：按钮指令要求、或 hook 自动改文件需纳入；且 HEAD 为本会话创建、尚未 push
+8. amend 仅当：用户明确要求、或 hook 自动改文件需纳入；且 HEAD 为本会话创建、尚未 push
 
-## UI Push 流程
+## Push 流程
 
-按钮触发后：
+授权后：
 
-1. 仅 push 当前分支已有 commit；不 stage、不新建 commit（除非按钮指令另有说明）
+1. 仅 push 当前分支已有 commit；不 stage、不新建 commit（除非授权指令另有说明）
 2. 本仓库 remote：`git@github.com:lontten/ldb-rs.git`（SSH）
 3. 若出现 `Permission denied (publickey)`：说明 Agent 环境常无法访问本机 SSH 密钥；建议 Fork 或 Cursor **集成终端** push；不反复重试
 4. 推 `main` 可能需用户批准；禁止对 `main` / `master` force push
 5. 已 push 的 commit 不 amend（除非用户明确要求并接受 force push）
 
+## PR 流程
+
+授权后：
+
+1. 确认当前分支已 push（未 push 则先走 Push 流程，或授权指令另有说明）
+2. 并行只读检查：`git status`、`git log`、`git diff [base]...HEAD`（base 默认 `main`）
+3. 用 `gh pr create` 创建 PR；标题与正文遵循暴露面规范（同 commit message，禁止协作用语）
+4. 返回 PR URL
+
 ## 与 Fork / 本机终端
 
 - Fork、集成终端中的 Git 由用户自行操作，Agent 不干预
-- Agent 仅在 UI Commit / Push 按钮触发时介入 Git 写操作
+- Agent 仅在用户明确要求时介入 Git 写操作
 
 ## 交叉引用
 
-- commit 文案暴露面：`cursor-agent.mdc`
+- commit / PR 文案暴露面：`cursor-agent.mdc`
 - Rust 改动验证后再 commit：`rust-verify` skill
 - Plan / Agent 模式分工：`cursor-agent.mdc`

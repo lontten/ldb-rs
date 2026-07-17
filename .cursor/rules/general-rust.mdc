@@ -24,6 +24,7 @@ alwaysApply: false
 
 ## 注释
 
+- 语言约定见 `general-common`（说明文字中文，专业术语与标识保持英文）
 - 公开类型/函数：类型上方 `///` 1～2 行（职责 + 使用场景）
 - **错误枚举**：每个变体一行 `///`（中文），说明何时返回；载明字段含义**优先写在变体注释**；自明字段不必逐字段 `///`
 - **配置结构体**（如 `MysqlConfig`）：每个 `pub` 字段 `///`，说明连接参数语义
@@ -51,3 +52,4 @@ pub enum LdbError {
 
 - 运行 `cargo fmt --all`、`cargo test --all`；有 clippy 时运行 `cargo clippy`
 - 纯逻辑写单元测试；跨模块行为写在对应 crate 的 `tests/` 或模块内 `#[cfg(test)]`
+- **无序断言**：见 `general-common`；Rust 侧可用 `sort` 后比，或转 `HashSet` 等

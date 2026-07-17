@@ -31,7 +31,7 @@ alwaysApply: true
 - 按 todos 顺序执行，标记 in_progress → completed
 - 不扩大范围；遵守计划中的「不改动的部分」
 - 改动体积遵循 `general-common.mdc`「改动精简」：功能与可读优先，避免多余说明与无关 wording 变更
-- Rust 改动按 `rust-verify`：`cargo fmt`、`cargo test`
+- Rust 改动按 `rust-verify` skill 执行（`fmt --check` / `fmt`、`test`、可选 `clippy`）
 
 ## 计划文档
 
@@ -41,7 +41,7 @@ alwaysApply: true
 ## 与本仓库其他规则
 
 - 实现细节见 `general-common.mdc`、`general-rust.mdc`、`project-conventions.mdc`
-- Git commit / push 入口与流程见 `git-workflow.mdc`（仅 Diff 面板快捷按钮，聊天禁用）
+- Git commit / push / PR 见 `git-workflow.mdc`（用户明确要求后执行）
 - 计划中的约定（如 `field_name`、变体级 `///`）落地时须与上述规则一致
 
 ## 项目暴露面与协作内容分界
